@@ -12,15 +12,18 @@ existing animation primitives before adding a dependency.
 ## Route
 
 | Need | Authority |
-|---|---|
-| DOM/SVG motion, timelines, scroll, drag, FLIP, React/Vue/Svelte | Installed `gsap-core`, `gsap-timeline`, `gsap-scrolltrigger`, `gsap-plugins`, `gsap-react`, `gsap-frameworks`, `gsap-utils`, and `gsap-performance` skills |
+| --- | --- |
+| DOM/SVG motion, timelines, scroll, drag, FLIP, React/Vue/Svelte | Official GSAP documentation at `https://gsap.com/docs/v3/` |
 | Authored interactive vector graphics, state machines, data binding, cross-platform `.riv` assets | [references/rive.md](references/rive.md) |
 | Flutter 2D game loops, components, collision, particles, camera, world, or overlays | [references/flame.md](references/flame.md) |
 | Choosing or combining runtimes | [references/runtime-selection.md](references/runtime-selection.md) |
 
-Do not vendor or restate the GSAP skills. Load only the matching skill. For Rive
-or Flame, open one to three exact official URLs from the matching reference; use
-the Rive `llms.txt` index only to discover a page not already routed.
+Basic layout, spacing, radius, hover, and theme work needs no animation runtime at
+all — apply the 22 rules directly and add no dependency. Reach for a runtime only
+when the interaction model genuinely requires one.
+
+For GSAP, Rive, or Flame, open one to three exact official URLs from the matching
+reference; use the Rive `llms.txt` index only to discover a page not already routed.
 
 ## Production contract
 

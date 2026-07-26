@@ -14,15 +14,15 @@ its incoming and outgoing states.
 
 1. **Ground:** read the route, screen, reusable primitives, state owner, validators,
    integration calls, data types, assets, tests, and project-knowledge entry.
-2. **Enumerate states:** initial, loading, empty, partial, populated, validation
-   failure, dependency failure, retry, success, disabled, focus, hover, press,
-   offline/reconnect, interruption/resume, long content, localization, and reduced
+2. **Enumerate states:** the shared scenario matrix is owned by `elite-launch` — do
+   not restate it. Add only the screen-level states it does not cover: populated,
+   validation failure, disabled, focus, hover, press, long content, and reduced
    motion where applicable.
 3. **Implement sequential lenses:**
    - UX: fewest actions, hierarchy, feedback, recovery, mobile/keyboard comfort.
    - Visual/motion: design-system consistency, typography, spacing, assets, motion,
-     focus/hover/active, reduced motion. Route animation through `elite-launch`
-     `references/animation-systems.md`.
+     focus/hover/active, reduced motion. Route animation through
+     `interactive-animation-systems`.
    - Functional: typed state, pure validation/domain rules, real integration,
      idempotency, races, errors, performance, and cleanup.
 4. **Run focused checks**, then start the real application.

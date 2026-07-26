@@ -40,10 +40,8 @@ AI CLI unless the user explicitly requests that mechanism in the current prompt.
   remove it after verification.
 
 Read [references/layered-architecture.md](references/layered-architecture.md)
-before changing boundaries. For UI work, run
-`ui-flow-review-loop`. For motion, read
-[references/animation-systems.md](references/animation-systems.md). Load other
-specialists only through
+before changing boundaries. For UI work, run `ui-flow-review-loop`. For motion,
+run `interactive-animation-systems`. Load other specialists only through
 [references/specialty-support.md](references/specialty-support.md).
 
 ## Scenario and regression matrix

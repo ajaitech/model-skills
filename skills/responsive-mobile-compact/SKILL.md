@@ -23,7 +23,7 @@ column on mobile — that is REJECTED here. Mobile must stay dense and professio
    - Padding: `p-3.5 md:p-6`, section `py-11 md:py-24`.
    - Gaps: `gap-2 md:gap-5`, block spacing `mt-10 md:mt-14`.
    - Icons: `h-9 w-9 md:h-12 md:w-12`, glyphs `h-5 w-5 md:h-6 md:w-6`.
-   - Radius: `rounded-2xl md:rounded-3xl`.
+   - Radius: `rounded-2xl md:rounded-3xl`, never below the Rule 2 minimum.
 
 3. **Cramped-but-readable cards on mobile:** stack icon-on-top with `flex flex-col …
    md:flex-row` so text keeps full width in a narrow 2-col cell; tighten line-height
@@ -33,8 +33,8 @@ column on mobile — that is REJECTED here. Mobile must stay dense and professio
    per screen on mobile than desktop-scaled type would. Shorten long paragraphs for the
    mobile cell; hide non-essential decorative glyphs on mobile (`hidden md:block`).
 
-5. **Never break the site rule** it composes with: no full-width CTA buttons — CTAs stay
-   `inline-flex`/content-width, not `w-full` blocks.
+5. **The 22 rules still apply at every breakpoint.** This skill only adds mobile density;
+   it never relaxes them. Compaction must not be used to justify breaking any rule.
 
 ## Verify before "done"
 
