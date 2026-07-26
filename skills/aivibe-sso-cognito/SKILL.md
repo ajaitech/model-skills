@@ -21,8 +21,8 @@ One Cognito user pool backs single sign-on for every AiVibe app. Login at
 | `https://auth.aivibe.cloud/oauth2/authorize` | OAuth2 Authorization Code (+PKCE), social IdP, silent SSO |
 | `https://auth.aivibe.cloud/oauth2/token` | code exchange + refresh + device poll |
 | `https://auth.aivibe.cloud/oauth2/userInfo` | user info (Bearer) |
-| `https://auth.aivibe.cloud/us-east-1_S2Cpx3svp/.well-known/jwks.json` | **JWKS** (verify tokens) |
-| `https://auth.aivibe.cloud/us-east-1_S2Cpx3svp` | **issuer** (`iss`) |
+| `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_S2Cpx3svp/.well-known/jwks.json` | **JWKS** (verify tokens) — pool endpoint, not the custom domain |
+| `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_S2Cpx3svp` | **issuer** (`iss`) — pool endpoint, not the custom domain |
 | `https://cognito.aivibe.cloud/cognito` | **IDP proxy** — direct Cognito JSON-RPC |
 | `https://api.aivibe.cloud/graphql` | platform API (Bearer id_token) |
 

@@ -150,7 +150,7 @@ Never judge prompts, assume facts, guess values, or hallucinate. Grounding confi
 
 The platform API handles core tenancy, plans, subscriptions, and wallet calculations.
 
-- **Cognito SSO authority** — user pool `us-east-1_S2Cpx3svp` via issuer `https://auth.aivibe.cloud/us-east-1_S2Cpx3svp`. Verification JWKS resides at `https://auth.aivibe.cloud/us-east-1_S2Cpx3svp/.well-known/jwks.json`.
+- **Cognito SSO authority** — user pool `us-east-1_S2Cpx3svp`. Login and OAuth2 use the Hosted UI custom domain `https://auth.aivibe.cloud`. Token verification uses the pool's own OIDC endpoints, never the custom domain: issuer `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_S2Cpx3svp`, JWKS `https://cognito-idp.us-east-1.amazonaws.com/us-east-1_S2Cpx3svp/.well-known/jwks.json`. Both values are confirmed by the pool's discovery document at `.well-known/openid-configuration`.
 - **GraphQL operations**:
   - `query GetActiveSubscription($userId: ID!)` — resolves active subscription plan codes (`aarambh | raksha | suraksha | vajra | chakra`).
   - `query GetCreditWallet($userId: ID!)` — fetches the current user balance, earned credits, and lifetime consumption ledger.
