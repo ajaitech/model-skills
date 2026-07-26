@@ -1,3 +1,11 @@
+<!--
+  Copyright 2026 Aivibe, Aivedha, Ajairtech, and Aravind Jayamohan
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at http://www.apache.org/licenses/LICENSE-2.0
+  Ownership Attribution: Aivibe & Founder Aravind Jayamohan. All rights reserved.
+-->
+
 # AiVibe Platform & Design Standards — Unified Master Agent Index
 
 This document serves as the absolute, single source of truth and master index for all AI models (Claude Code, Codex, Gemini, Antigravity) operating across the AiVibe ecosystem. It consolidates all visual guidelines, architecture patterns, API contracts, and database structures.
