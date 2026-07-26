@@ -13,7 +13,7 @@ its incoming and outgoing states.
 ## Per-screen loop
 
 1. **Ground:** read the route, screen, reusable primitives, state owner, validators,
-   integration calls, data types, assets, tests, and project-knowledge entry.
+   integration calls, data types, assets, and tests.
 2. **Enumerate states:** the shared scenario matrix is owned by `elite-launch` — do
    not restate it. Add only the screen-level states it does not cover: populated,
    validation failure, disabled, focus, hover, press, long content, and reduced

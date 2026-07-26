@@ -13,8 +13,8 @@ AI CLI unless the user explicitly requests that mechanism in the current prompt.
 ## Ground before editing
 
 1. Resolve the canonical repository and inherited working-tree state.
-2. Read project guidance and the exact project-knowledge document referenced
-   there; validate affected entries against current source before relying on them.
+2. Read the project guidance the repository actually carries. Treat current source
+   as the authority; use a document only after validating it against that source.
 3. Trace the real entry points, routes, UI/state, domain rules, typed integration,
    persistence/external effects, events, observability, recovery, and deployment
    boundary touched by the request.
@@ -59,8 +59,7 @@ Use focused checks while implementing. Run the full build only after the coheren
 end-to-end slice is complete. Then run every project-required format, lint, static
 analysis, type, unit, integration, end-to-end, build, runtime, browser, console,
 network, accessibility, and performance gate applicable to the change. Fix every
-error and warning, rerun from the settled source, and update the project-knowledge
-document from the final source.
+error and warning, then rerun from the settled source.
 
 Report only exact changed artifacts, verification evidence, and genuine blockers.
 Do not replace implementation with advice or spend tokens on a progress story.
