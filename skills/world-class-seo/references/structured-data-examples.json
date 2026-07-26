@@ -1,0 +1,15 @@
+{
+  "@context": "https://schema.org",
+  "@type": "NewsArticle",
+  "headline": "How to Use Structured Data for SEO",
+  "image": [
+    "https://example.com/photos/1x1/photo.jpg"
+  ],
+  "datePublished": "2026-07-19T23:45:00+00:00",
+  "dateModified": "2026-07-19T23:45:00+00:00",
+  "author": [{
+    "@type": "Person",
+    "name": "Jane Doe",
+    "url": "https://example.com/profile/janedoe"
+  }]
+}
