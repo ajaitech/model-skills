@@ -126,3 +126,20 @@ App Check is active on all non-web platforms.
   chat media tap-to-open, dialog backdrop).
 - `android/build.gradle.kts:29-35` adds tapandpay to a `stripe_android`
   subproject; no Stripe package exists in `pubspec.yaml` — dead config.
+
+## Owner-blocked items (not resolvable from source)
+
+Carried forward from the owner's operational notes on 2026-07-31. These need the
+owner personally; no agent can clear them.
+
+| Item | Action required | Impact while open |
+|---|---|---|
+| Release keystore password leaked | Rotate the keystore credential and purge it from wherever it leaked | Signed-release integrity at risk |
+| Firebase CLI session expired | Owner runs `firebase login --reauth` | Security Rules and index deploys blocked |
+| Gemini API spending cap reached | Raise the cap or switch generation account | 12 car photos still missing from the catalogue |
+| Launch seed not applied | Owner runs the launch content seed with `--apply` | 100 profiles + 280 rides absent from the live app |
+
+Verification standard for this project: a change is done only when the running
+app has been driven on device and screenshotted. `flutter analyze` catches
+compile errors and is not evidence a feature works. Emulator: `VibeMyCar_API_36`.
+adb: `/opt/homebrew/share/android-commandlinetools/platform-tools/adb`

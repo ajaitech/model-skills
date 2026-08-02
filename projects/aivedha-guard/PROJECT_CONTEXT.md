@@ -35,7 +35,7 @@ product in the AiVibe SaaS suite, sharing Cognito SSO and one RDS.
 | Backend | AWS Lambda, Python (py3.12 target) | — | `deploy/deploy_lambda.sh:76` |
 | Database | PostgreSQL, shared `aivibe_platform` RDS | — | `shared/db_connection.py` |
 | Auth | Cognito Hosted UI, shared AiVibe pool | `us-east-1_S2Cpx3svp` | `src/lib/cognito.ts:3` |
-| Hosting | S3 + CloudFront | `aivedha-website-936668162296` | `deploy/deploy_frontend.sh` |
+| Hosting | S3 + CloudFront | `aivedha-website-<AWS_ACCOUNT_ID>` | `deploy/deploy_frontend.sh` |
 | Payments | Razorpay SDK (Python) | `razorpay==1.4.2` | `razorpay-handler/requirements.txt` |
 
 App version `2.7.4` = `API_VERSION`. No `aws-amplify` — hand-rolled `graphql-ws` client.

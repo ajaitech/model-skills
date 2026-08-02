@@ -105,8 +105,11 @@ headers to PHP under Apache.
   (`LoginController.php:37,48`).
 - Session pages: Laravel session guard (MySQL) + `RedirectIfNotAuthenticated`;
   Breeze's email+password login runs in parallel (`routes/auth.php`).
-- No role/permission package here (contrast Admin Panel's
-  `spatie/laravel-permission`) — every authenticated user has equal access.
+- No role/permission package or custom RBAC here — every authenticated user
+  has equal access. (Admin Panel declares `spatie/laravel-permission` in
+  composer.json but does not use it at runtime either — its `permission`
+  route middleware is custom code against a custom `roles`/`permissions`
+  schema, not the Spatie package.)
 - Secrets: env-var only, via `PaymentCredentialService` (rejects names not
   under `VMC_PAYMENT_*`); names seen, no values: `FIREBASE_CREDENTIALS`,
   `AWS_ACCESS_KEY_ID/SECRET`, `GOOGLE_MAP_KEY`. Public: `landing`,

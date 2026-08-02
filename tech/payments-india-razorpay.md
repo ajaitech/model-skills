@@ -1,7 +1,12 @@
 # Payments — India, Razorpay
 
-This org is **Razorpay-only for India**. Stripe is not part of the stack — never
-introduce Stripe SDKs, keys, or webhooks into any India-facing payment flow.
+Razorpay is the **default and preferred gateway for India-facing payment flows**
+in this org. It is not the only gateway in production: Stripe is a live,
+sanctioned second gateway in the VibeMyCar web surfaces (`vibemycar-web-panel`,
+`vibemycar-admin-panel`) — never remove or rip out an existing Stripe
+integration. Before assuming which gateway is authoritative for a given
+surface, check `PaymentGatewayRegistry` (or the project's equivalent gateway
+registry).
 
 ## Applies when
 - Deps on the `razorpay` SDK.
@@ -47,7 +52,10 @@ introduce Stripe SDKs, keys, or webhooks into any India-facing payment flow.
 - [ ] No card PAN/CVV ever logged, stored, or transits the app server
 
 ## Never
-- Never introduce Stripe, or any gateway other than Razorpay, into an India flow.
+- Never remove, rip out, or disable an existing Stripe integration on the
+  assumption this org is Razorpay-only — verify against `PaymentGatewayRegistry`
+  (or the project's equivalent registry) before treating Razorpay as the sole
+  gateway.
 - Never trust a client-supplied amount, currency, or order_id at capture time.
 - Never verify a webhook signature against a parsed/re-serialized body.
 - Never treat a create-refund `200` as proof the customer received their money.

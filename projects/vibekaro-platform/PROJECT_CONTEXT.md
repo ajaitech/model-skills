@@ -55,7 +55,7 @@ Harnesses stream ordered events over AppSync Events. (`docs/ARCHITECTURE.md`)
 
 CI/CD: GitHub Actions → AWS via OIDC only. CodeBuild runs `web.yml`/`flutter.yml` (scan, lint,
 typecheck, tests, E2E, a11y, Lighthouse, SBOM, release) and `execution.yml` (tenant preview) on
-non-root `containers/` images. Target: CDK `VibeKaroPlatform`, account `936668162296`,
+non-root `containers/` images. Target: CDK `VibeKaroPlatform`, account `<AWS_ACCOUNT_ID>`,
 `us-east-1`, cross-region `VibeKaroRecovery` in `us-west-2`, both `terminationProtection: true`.
 
 ## Naming conventions
