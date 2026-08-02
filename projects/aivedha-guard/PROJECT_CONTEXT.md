@@ -2,137 +2,123 @@
 
 ## Goal
 
-AiVedha Guard (npm `aivedha-guard`, live at `aivedha.ai`) is an AI-powered website security
-audit platform. A user submits a URL; the backend runs a 41-step scan (SSL/TLS, DNS,
-headers, XSS/SQLi/SSRF/XXE/JWT, AI risk synthesis), streams live progress, and produces a
-PDF report, a score/grade, and — above a threshold — a public certificate + badge. Users:
-site owners and security teams; GitHub Marketplace/Actions lets CI/CD trigger audits.
-Monetized via plans (`aarambh` free → `chakra` enterprise) plus credit packs on Razorpay.
-Part of the AiVibe SaaS suite, sharing Cognito SSO and one RDS.
+Website security-audit platform at `aivedha.ai`. Submit a URL → fixed **41-item / 8-phase** scan →
+live AppSync progress → PDF + 0–10 score + grade; certificate and public badge only at score
+**≥ 7.0 with zero critical/high findings** (`shared/certificate_policy.py:17,133`). Plans
+`aarambh`→`chakra` + credit packs on Razorpay; the RDS and Cognito pool are shared with the rest
+of the AiVibe suite. `aivedha-guard` **2.7.4**, private.
 
 ## Core requirements
 
-- Audit lifecycle is atomic: URL validate → credit check → scan → live progress (AppSync
-  sub) → all items → PDF → certificate/badge if qualified → email → **credit deducted only
-  after the email succeeds**. Findings shown to the owner unredacted, secrets included.
-- Universal data (users/plans/subscriptions/credits/billing) belongs to the shared
-  `aivibe_platform` RDS; app data lives in `aivedha_ai_*` tables.
-- No hardcoded plan codes/prices/URLs/emails — config/env/DB sourced; `FALLBACK ONLY`
-  fixtures labeled. Types match case-sensitively across `audit.types.ts` ↔ `schema.graphql`
-  ↔ Lambda dicts. Secrets via `secrets_loader.py`. Razorpay is the default gateway; PayPal
-  only if `VITE_ENABLE_PAYPAL=true` (`src/config/index.ts:208`).
+- The audit lifecycle is atomic (`docs/important-ref-docs/EXECUTION_MANDATE.md` §3) and ends
+  PDF → certificate/badge if qualified → email → **credit deducted only after the email succeeds**
+  (`security-audit-crawler.py:12115`, idempotency key `audit-<report_id>`). No finding is
+  redacted, hidden or summarised.
+- No hardcoded plan codes/prices/URLs/emails. Secrets via `secrets_loader.py` (Secrets Manager
+  `aivibe/*` → env fallback). Razorpay is the default gateway; PayPal only if
+  `VITE_ENABLE_PAYPAL=true` (`src/config/index.ts:208`).
 
 ## Tech stack
 
-| Layer | Technology | Version | Source of truth |
-|---|---|---|---|
-| Frontend | React/TS, Vite+SWC, Tailwind/shadcn, react-router 6.30.3, react-query 5.90.21 | 18.3.1/5.9.3/7.3.1/3.4.19 | `package.json` |
-| API primary | AWS AppSync GraphQL | id `sgig66576fhyvc2or2beq775ne` | `aws-appsync/schema.graphql:7` |
-| API fallback | API Gateway + Lambda REST | `https://api.aivedha.ai/api` | `src/lib/api.ts:91` |
-| Backend | AWS Lambda, Python (py3.12 target) | — | `deploy/deploy_lambda.sh:76` |
-| Database | PostgreSQL, shared `aivibe_platform` RDS | — | `shared/db_connection.py` |
-| Auth | Cognito Hosted UI, shared AiVibe pool | `us-east-1_S2Cpx3svp` | `src/lib/cognito.ts:3` |
-| Hosting | S3 + CloudFront | — | `.github/workflows/deploy-production.yml` |
-| Payments | Razorpay SDK (Python) | `razorpay==1.4.2` | `razorpay-handler/requirements.txt` |
+| Layer | Technology | Source |
+|---|---|---|
+| Frontend | React 18.3.1, TS 5.9.3, Vite 7.3.1+SWC, Tailwind 3.4.19 + shadcn, react-router 6.30.3, react-query 5.90.21 | `package.json` |
+| API primary | AppSync GraphQL, api id `sgig66576fhyvc2or2beq775ne`, Lambda resolvers via the `shared/appsync_handler.py` shim | `schema.graphql:7` |
+| API legacy | API Gateway REST `https://api.aivedha.ai/api`, retiring | `src/lib/api.ts:91` |
+| Backend | Lambda, Python 3.12 target, **29 entrypoints** | `deploy_lambda.sh:76` |
+| Database | PostgreSQL `aivibe_platform`, search_path `public` | `shared/db_connection.py:62,68` |
+| Auth | Cognito Hosted UI `auth.aivibe.cloud`, pool `us-east-1_S2Cpx3svp` | `src/lib/cognito.ts:3` |
+| Payments | `razorpay==1.4.2` + `setuptools==70.3.0` (py3.12 dropped `pkg_resources`) | `razorpay-handler/requirements.txt` |
 
-Version `2.7.4`; no `aws-amplify` — hand-rolled native `WebSocket` on the `graphql-ws`
-subprotocol (`src/lib/appsync-client.ts:268`).
+The 29 entrypoints are 27 `lambda_function.py` + `security-crawler/security-audit-crawler.py` +
+`js-renderer/handler.py`; `shared/`, `layers/`, `jwt-layer/` are not functions. No `aws-amplify`
+— hand-rolled `WebSocket` on `graphql-ws` (`appsync-client.ts:268`). No AWS CDK.
 
 ## Build / run / deploy
 
-- Prereqs: Node 22 (CI pins it), Python 3.12 + AWS CLI creds for Lambda work; copy
-  `.env.example` → `.env`.
+- Prereqs: Node 22 (`deploy-production.yml:59`); Lambdas need Python 3.12 + `pip` + `zip` + AWS
+  CLI creds; `js-renderer` also Docker + ECR. `.env.example` → `.env` (7 required `VITE_*` keys).
 - `npm ci` → `npm run dev` (Vite on **port 8080**, `vite.config.ts:9`); `npm run lint`;
   `npm run build` (`prebuild` regenerates sitemap + RSS).
-- Frontend deploys on push to `main`: lint → build → `s3 sync` → `index.html` no-cache
-  re-upload → CloudFront invalidation → IndexNow ping.
-- Lambda deploy is manual: `deploy/deploy_lambda.sh <short-name>` → function
-  `aivedha-guardian-<short-name>` (`deploy_lambda.sh:35`); deps built
-  `--platform manylinux2014_x86_64 --python-version 3.12`.
-- No test suite. `scripts/validate-*.cjs` / `test-*.mjs` are contract checks, not tests.
+- Push to `main` deploys the frontend (lint → build → s3 sync → `index.html` no-cache re-upload
+  → CloudFront invalidation → IndexNow); a **`grep -RInE "localhost|127.0.0.1|staging" dist`
+  guard fails the build on any match**. `deploy/deploy_frontend.sh` is the manual equivalent.
+- Lambda (zip): `deploy/deploy_lambda.sh <dir> [--smoke]` → `aivedha-guardian-<dir>` (`:35`).
+  Stages `shared/*.py` at zip root, then installs a per-Lambda `requirements.txt` (only 5 dirs
+  have one) with AWS's cross-platform wheel flags `--platform manylinux2014_x86_64
+  --implementation cp --python-version 3.12 --only-binary=:all:` (`:76`, per
+  `docs.aws.amazon.com/lambda/latest/dg/python-package.html`).
+- Lambda (container): `js-renderer` is an **image** function built by
+  `js-renderer/build_deploy.sh` (Playwright/Chromium → ECR); its entry is `handler.py`, so
+  `deploy_lambda.sh` rejects it by design (`:44`).
+- AppSync: `deploy/update_appsync_resolvers.py` **updates existing** resolvers' VTL only — it
+  never creates them.
+- No test runner in `package.json`; two `unittest` modules sit under `shared/` and
+  `scripts/validate-*.cjs`/`test-*.mjs` are hand-run contract checks CI never runs.
 
-## Architecture
+## Data model & conventions
 
-Client-only Vite/React SPA on S3+CloudFront. Two backend paths coexist: AppSync GraphQL
-fronting Lambda resolvers, with the `onAuditProgress` subscription for live progress; and a
-legacy REST path via API Gateway (`src/lib/api.ts`) slated for retirement.
-**29 Lambda function directories** under `aws-lambda/`, each with `lambda_function.py`
-(`shared/`, `layers/`, `jwt-layer/` are not functions); scanner =
-`security-crawler/security-audit-crawler.py`. DB access is direct psycopg2
-(`shared/db_connection.py`); `shared/universal_db.py` also hits universal tables (see gaps).
-
-## Naming conventions
-
-- Components PascalCase one-per-file (`Dashboard.tsx`); other TS modules kebab-case;
-  Lambda dirs kebab-case → `aivedha-guardian-<short-name>`.
-- Tables prefixed `aivedha_ai_` (collision-proofing in the shared `public` schema), columns
-  snake_case. Env: frontend `VITE_*`, backend upper-snake.
-- GraphQL types PascalCase; fields dual-cased — camelCase canonical (`progressPercent`,
-  `schema.graphql:198`) plus snake_case legacy aliases (`credit_used`).
-- Plans `aarambh`,`raksha`,`suraksha`,`vajra`,`chakra` (`src/constants/apps.ts:59`).
-  `app_id`=`'aivedha-guard'` (`shared/gateway_config.py:622`). Branches
-  `<type>/<desc>-<YYYY-MM-DD>`.
-
-## Data types & models — `database/aivedha_ai_schema.sql` (CREATE TABLE line)
-
-| Table `aivedha_ai_…` | Key fields | Line |
-|---|---|---|
-| `audit_reports` | `report_id PK`,`user_id`,`status`,`security_score`,`grade`,`credit_used`,`scan_results:JSONB`,`items_total DEFAULT 41` (:103) | 35 |
-| `audit_findings` | `finding_id PK`,`report_id FK`,`severity`,`evidence:TEXT` (unredacted),`cvss_score`,`ai_status` | 124 |
-| `certificates` | `certificate_number PK`,`report_id FK`,`security_score`,`grade`,`revoked` | 169 |
-| `scheduled_audits` | `schedule_id PK`,`cron_expr`,`active`,`next_run_at` | 195 |
-| `addon_purchases` | `purchase_id PK`,`addon_code`,`provider` | 352 |
+`database/aivedha_ai_schema.sql` — 13 `aivedha_ai_*` tables in the shared `public` schema, columns
+snake_case. `audit_reports` (:35) holds `security_score`, `grade`, `credit_used`,
+`scan_results JSONB`, `items_total DEFAULT 41` (:103); `audit_findings` (:124) is one row per
+occurrence with `evidence` never redacted. `migrations/2026_findings_ai_queue.sql` adds
+`finding_signature`/`ai_status`/`ai_severity` for asynchronous Bedrock enrichment over SQS.
+`app_id`=`'aivedha-guard'` (`shared/gateway_config.py:622`).
 
 ## API surface
 
-`schema.graphql`: **30 Query, 82 Mutation, 1 Subscription** fields; client `appsync-api.ts`.
-
-| Operation | Auth |
-|---|---|
-| `startAudit`/`getAuditStatus`/`startCicdAudit` | API key / per-user `X-API-Key` |
-| `onAuditProgress` (sub) / `publishAuditProgress` | api_key+iam / iam-only |
-| `authenticateUser`/`registerUser`/`googleAuth`/`authenticateGitHub` | API key |
-| `createRazorpayOrder`/`Subscription`/`verifyPayment` | API key |
-| `createApiKey`/`deleteApiKey`/`revokeApiKey` | `@aws_cognito_user_pools` |
-| `handleGitHubWebhook` | HMAC (`GITHUB_WEBHOOK_SECRET`) |
+`schema.graphql`: **30 Query, 56 Mutation, 1 Subscription** = 87 root fields (parsed from each root
+type block); documents in `src/lib/appsync-api.ts`. Fields are dual-cased: camelCase
+canonical (`progressPercent` :198) + snake_case legacy aliases (`credit_used` :195).
+`API_KEY` is the default auth provider; exceptions: `onAuditProgress` (`@aws_api_key`+`@aws_iam`,
+:1257), `publishAuditProgress` (`@aws_iam`, :1153), `listApiKeys`/`createApiKey`/`deleteApiKey`/
+`revokeApiKey` (`@aws_cognito_user_pools`, the only four), `handleGitHubWebhook` (HMAC), and the
+CI/CD path, which authenticates a per-tenant `X-API-Key` (`crawler:11028`).
 
 ## Security boundary
 
-- CORS lives only in `aws-lambda/shared/cors.py` (REST Lambdas; AppSync does its own):
-  allow-list `CORS_ALLOWED_ORIGINS`, default `aivedha.ai`/`www.`/`admin.` (:18);
-  `resolve_origin()` echoes Origin only if allow-listed; `Allow-Credentials: true`,
-  `GET,POST,PUT,DELETE,OPTIONS` (:43).
-- Cognito Hosted UI at `auth.aivibe.cloud`. AppSync: `API_KEY` default + `AWS_IAM` extra
-  provider; some fields `@aws_cognito_user_pools`.
+- CORS is **not** centralised: 14 of 29 functions import `shared/cors.py` (env allow-list
+  `CORS_ALLOWED_ORIGINS`, default apex/`www.`/`admin.` `:18`, `Allow-Credentials: true` `:43`).
+  The rest hand-roll headers, several emitting `Access-Control-Allow-Origin: '*'`
+  (`badge-generator:55`, `secure-badge:68`, `crawler:11021`) — editing `cors.py` misses those.
+- `/admin/*` is a separate auth path: `adminToken` in localStorage verified by `admin-auth` with
+  `ADMIN_JWT_SECRET`, not Cognito. `<PrivateRoute>` (`src/App.tsx:100`) redirects anonymous users
+  to `/` with a login popup, not a 403; `/certificate/:n` and `/verify/:n` are public.
 - Secret NAMES only: `GITHUB_WEBHOOK_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, `PAYPAL_WEBHOOK_ID`,
-  `RDS_HOST`, `RAZORPAY_KEY_ID`, `ADMIN_JWT_SECRET`; Secrets Manager ids `aivibe/*`.
-- Public: marketing, `/pricing`, `/certificate/:num`, `/verify/:num`, blog, badges. Private
-  (`<PrivateRoute>`): `/dashboard`, `/security-audit`, `/purchase`, `/profile`,
-  `/scheduler`. `/admin/*` uses a separate admin-JWT path.
+  `ADMIN_JWT_SECRET`, `BADGE_TOKEN_SECRET`, `RDS_HOST`, `RDS_SECRET_ARN`.
 
 ## Known gaps & risks
 
-- **IaC gap**: the schema header claims "ALL operations served through AppSync," but
-  `aws-appsync/cloudformation-template.yaml` declares only **2** `AWS::AppSync::Resolver`.
-  Every other resolver exists only in the live API, outside checked-in IaC.
-  `deploy/update_appsync_resolvers.py` does **not** create them — it lists live resolvers
-  and rewrites their VTL templates (skipping `NoneDataSource`). Delete the API and the
-  resolver set cannot be rebuilt from this repo.
-- **Universal-data boundary broken by design**: target state is universal tables via
-  `api.aivibe.cloud`; `shared/universal_db.py` uses direct SQL instead, since that API has
-  no service-to-service auth path (its module header says so). Read/UPDATE only —
-  CREATE/DROP forbidden. `shared/universal_api.py`, cited by
-  `docs/important-ref-docs/MIGRATION_STATUS.md`, does not exist — stale docs.
-- **README overstates coverage**: "21 modules, 178+ checks" (`README.md:30`, echoed in
-  `src/constants/features.ts:123`) vs the crawler's fixed **41-item, 8-phase** pipeline
-  (`security-audit-crawler.py:1672`; initialization, crawling, ssl_analysis, dns_analysis,
-  header_analysis, vulnerability_detection, ai_analysis, report_generation). Keep the
-  measured numbers. README also presents PayPal as the gateway; it is Razorpay.
-- **TLS misconfig (P0)**: `api.aivedha.ai` serves the API Gateway default cert, not the
-  `*.aivedha.ai` ACM cert — breaks direct API/CI-CD consumers
-  (`docs/important-ref-docs/INFRA_RUNBOOK.md` R1). Raksha/Suraksha have empty Razorpay
-  plan IDs (R3).
-- **Open** (`docs/testing-needs/ISSUES_AND_FIXES.md`): no `app_id` column for
-  multi-tenancy; some Lambdas read `os.environ` instead of `secrets_loader`; signup grants
-  only local Aarambh, not the spec'd multi-app grant. Non-obvious failure: a Lambda
-  deployed without `aivedha-guardian-common-layer` fails at import time.
+- **IaC gap.** `schema.graphql:11` says all operations go through AppSync, yet
+  `cloudformation-template.yaml` declares **1 NONE data source + 2 NONE-backed resolvers** and no
+  Lambda data source — the 87 fields' real resolvers exist only in the live API. It also won't
+  deploy: `DefinitionS3Location: ./schema.graphql` is a local path where CloudFormation
+  needs an S3 location (`AWS::AppSync::GraphQLSchema` ref at
+  `docs.aws.amazon.com/AWSCloudFormation/`), and `PlaceholderQueryResolver` binds
+  `Query._placeholder`, absent from the schema.
+- **Universal-data boundary broken by design.** `db_connection.py:8-11` bans universal-table
+  queries here; `universal_db.py` imports its `execute_query`/`execute_update` anyway and runs
+  direct SQL on 10 `public.*` universal tables because `api.aivibe.cloud` offers no
+  service-to-service auth (`:6-15`). Read/UPDATE only. `shared/universal_api.py` (~10 cites in
+  `MIGRATION_STATUS.md`) and `shared/invoice_generator.py` (`ISSUES_AND_FIXES.md` E9) do not exist
+  — stale docs.
+- **Coverage overstated.** "21 modules, 178+ checks" (`README.md:30`, `Hero.tsx:1430`,
+  `FAQ.tsx:914`; "All 21 modules execute", `EXECUTION_MANDATE.md` §3.5) vs 41 items in 8 phases
+  (`security-audit-crawler.py:1673`: initialization 4, crawling 5, ssl 5, dns 5, header 4,
+  vulnerability 10, ai 4, report 4). Use the measured numbers; README also still names PayPal.
+- **TLS misconfig (P0, open).** `api.aivedha.ai` serves the API Gateway default
+  `*.execute-api.us-east-1.amazonaws.com` cert (`INFRA_RUNBOOK.md` R1; `ISSUES_AND_FIXES.md` C1
+  🟥), breaking direct REST consumers and the Vite dev proxy (`vite.config.ts:12-14`,
+  `secure: true`). The GitHub Action is unaffected — it targets `audit.aivedha.ai`.
+- **Two Lambda deploy scripts.** `scripts/deploy-lambdas.sh` covers 8 functions, gates on a
+  hardcoded account ID and never installs `requirements.txt`; using it for `razorpay-handler`
+  ships without the SDK → `ImportModuleError` (`deploy_lambda.sh:66-72`). Use
+  `deploy/deploy_lambda.sh`.
+- **Layer contract unreproducible.** `deploy_lambda.sh:18-20` says
+  `aivedha-guardian-common-layer` ships psycopg2 + boto3 + jwt + requests; checked-in
+  `aws-lambda/layers/python/` holds 10 packages, none of them psycopg2 or boto3, and PyJWT lives
+  in `jwt-layer/`. A function deployed without the layer fails at import.
+- **Open ledger** (`docs/testing-needs/ISSUES_AND_FIXES.md`): B4 no `app_id` column; B5 some
+  Lambdas read `os.environ` not `secrets_loader`; B6 signup grants only local Aarambh; C2–C6
+  field drift `audit.types.ts` ↔ Lambda responses. R3 Raksha/Suraksha Razorpay plan IDs are empty
+  (`src/config/index.ts:102-105`), so those tiers cannot check out.
