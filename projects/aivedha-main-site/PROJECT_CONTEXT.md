@@ -1,105 +1,100 @@
 # AivedhA Main Site
 
 ## Goal
-Corporate marketing and legal site for **AIVEDHA INC** (New York, USA) at `www.aivedha.com`. A single-page, literary-magazine-styled ("Editorial Luxe") landing page whose sole conversion goal is sending visitors to the free beta of the actual product, `magic.aivedha.com` — a natural-language, UI-less ERP. Audience: prospective enterprise buyers (CFOs, founders, operators), search/AI crawlers, and Terms/Privacy readers. Source: `README.md`, `index.html`.
+Corporate marketing + legal site for **AIVEDHA INC** (New York, USA) at `www.aivedha.com`. Literary-magazine ("Editorial Luxe") landing page whose sole conversion goal is sending visitors to the free beta of the product, `magic.aivedha.com` — a natural-language, UI-less ERP. Audience: enterprise buyers, AI/search crawlers, legal-page readers.
 
 ## Core requirements
-- Builds to a static `dist/` bundle deployable to any static host (`README.md`).
-- `/terms`, `/privacy` serve as real routes via SPA fallback, not hash links (`server.mjs`, `App.tsx`).
-- SEO: canonical URL, hreflang, Open Graph, Twitter Card, 3 JSON-LD blocks (`Organization`, `WebSite`, `SoftwareApplication`) in `index.html`.
-- SEO: `robots.txt` allows `GPTBot`, `Google-Extended`, `ClaudeBot`, `PerplexityBot` + `*`; disallows `/api/` (non-existent).
-- SEO: `sitemap.xml` lists `/`, `/terms`, `/privacy` with `lastmod`.
-- Perf: `/assets/*` → `Cache-Control: max-age=365d, immutable`; HTML → `no-cache` (`server.mjs`) — must survive hosting swap.
-- Perf: Google Fonts `preconnect`ed; `magic.aivedha.com` `dns-prefetch`ed.
-- A11y: hero letter animation duplicated in `sr-only` span (`Hero.tsx`); icon-only controls carry `aria-label`.
-- A11y/UX: `color-scheme: light dark` + `theme-color` metas; theme persists via `localStorage['aivedha-theme']`, falls back to `prefers-color-scheme`.
-- Site must never call a backend — only outbound reference is `magic.aivedha.com`.
-- Node `>=20` required (`package.json` `engines`).
+- Static `dist/` deployable to any static host; `/terms` and `/privacy` are real routes via SPA fallback, not hashes.
+- SEO in `index.html`: canonical, `hreflang` `en`+`x-default`, Open Graph, Twitter Card, 3 JSON-LD blocks. `public/robots.txt` allows `*`, `GPTBot`, `Google-Extended`, `ClaudeBot`, `PerplexityBot`; `public/sitemap.xml` lists the 3 routes.
+- Perf: `/assets/*` → `max-age=365d, immutable`; `.html` → `no-cache` — must survive a hosting swap. Node `>=20`.
+- A11y: hero letter animation mirrored in an `sr-only` span (`Hero.tsx`); icon-only controls carry `aria-label`.
+- Theme: `color-scheme: light dark` + paired `theme-color` metas; persisted in `localStorage['aivedha-theme']`, else `prefers-color-scheme`.
+- Never call a backend — the only outbound reference is `magic.aivedha.com`.
 
 ## Tech stack
-| Layer | Technology | Version (exact) | Source of truth |
+Declared | resolved in `package-lock.json` (`lockfileVersion: 3`).
+
+| Layer | Technology | Declared | Resolved |
 |---|---|---|---|
-| Build tool | Vite | `^6.2.0` | `package.json` |
-| UI framework | React / react-dom | `^19.0.0` | `package.json` |
-| Language | TypeScript | `~5.8.2` | `package.json` (dev) |
-| Routing | react-router-dom | `^7.1.1` | `package.json` |
-| Styling | Tailwind CSS + Vite plugin | `^4.1.14` | `package.json`, `vite.config.ts` |
-| Animation | motion | `^12.23.24` | `package.json` |
-| Icons | lucide-react | `^0.546.0` | `package.json` |
-| Class utils | clsx / tailwind-merge | `^2.1.1` / `^3.5.0` | `package.json` |
-| Prod server | Express | `^4.21.2` | `package.json`, `server.mjs` |
-| Type defs | @types/{express,node,react,react-dom} | `^4.17.21`/`^22.14.0`/`^19.0.0`/`^19.0.0` | `package.json` |
-| Runtime | Node.js | `>=20` | `package.json` `engines` |
-| Lockfile | npm | `lockfileVersion: 3` | `package-lock.json` |
+| Build | Vite | `^6.2.0` | `6.4.2` |
+| UI | react / react-dom | `^19.0.0` | `19.2.5` |
+| Language | TypeScript (dev dep) | `~5.8.2` | `5.8.3` |
+| Routing | react-router-dom | `^7.1.1` | `7.14.1` |
+| Styling | tailwindcss + `@tailwindcss/vite` | `^4.1.14` | `4.2.2` |
+| Server | Express | `^4.21.2` | `4.22.1` |
+| Other | motion `^12.23.24`, lucide-react `^0.546.0`, clsx `^2.1.1`, tailwind-merge `^3.5.0`, @vitejs/plugin-react `^5.0.4` | — | — |
+
+No database, ORM, Firebase, AWS/GCP SDK, payment SDK or auth library — verified in `package.json` and by grep of `src/`.
+
+## Build, run, deploy
+| Task | Command |
+|---|---|
+| Install | `npm ci` |
+| Dev / preview | `npx vite` (5173, `host: true`) / `npx vite preview` (4173) |
+| Build | `npm run build` → `dist/` |
+| Typecheck | `npm run lint` = `tsc --noEmit`; no ESLint config |
+| Serve prod | `npm run build && npm start` (`node server.mjs`, `PORT`, default 8080) |
+
+**Traps.** (1) `README.md` says run `npm run dev` / `npm run preview` — **neither exists**; only `build`, `start`, `lint` are defined. (2) `npm start` serves `dist/`; without a prior build every route `sendFile`s a missing `dist/index.html`. (3) `server.mjs` uses the bare wildcard `app.get('*')`, which Express 5 rejects — it requires the named `'/{*splat}'` (expressjs.com/en/guide/migrating-5.html); do not bump to Express 5 without rewriting that route.
 
 ## Architecture
-Pure client-rendered SPA, no backend API. `vite.config.ts` builds `src/` into static `dist/`; alias `@`→`./src`. `src/main.tsx` mounts `<App/>` in `<StrictMode><BrowserRouter>`. `src/App.tsx`: `ThemeProvider`→`GrainOverlay`→`Masthead`→routed `<main>`→`Footer`→fixed `TypographicDock`. Routes: `/`→`Home`, `/terms`→`Terms`, `/privacy`→`Privacy`, `*`→`Home`. `src/pages/Home.tsx` stitches 9 sections: `Hero, Marquee, Essay, Specimen, HowItWorks, FreeIssue, FeaturesIndex, Testimonials, Colophon`.
+Client-rendered SPA, no backend API. `vite.config.ts`: `react()` + `tailwindcss()`, import alias `@/*`→`src/*`. `src/main.tsx` mounts `<App/>` in `<StrictMode><BrowserRouter>`. `src/App.tsx`: `ThemeProvider` → `GrainOverlay` → `Masthead` → `ScrollToTop` → routed `<main id="main">` → `Footer` → fixed `TypographicDock`. Routes `/`→`Home`, `/terms`→`Terms`, `/privacy`→`Privacy`, `*`→`Home` (no 404 page; unknown paths render the homepage at 200). `Home.tsx` stitches 9 sections: `Hero, Marquee, Essay, Specimen, HowItWorks, FreeIssue, FeaturesIndex, Testimonials, Colophon`.
 
-`server.mjs` is a static file server, not an app backend: 301 redirects `aivedha.com`→`https://www.aivedha.com` (preserving path/query), serves `dist/` with tiered `Cache-Control`, exposes `/healthz`, re-serves `sitemap.xml`/`robots.txt`/`manifest.webmanifest` with explicit content-types, falls back to `dist/index.html` for SPA routes.
+`server.mjs` is a static file server, not an app backend — see API surface. Only outbound reference: `MAGIC_URL = 'https://magic.aivedha.com'` (`src/lib/utils.ts`), rendered as `<a target="_blank">` — never fetched or proxied.
 
-**Deployment target**: Google Cloud Run — inferred from `server.mjs` (`trust proxy: true`, "Cloud Run proxies" comment) + `.gcloudignore` (no Dockerfile, likely buildpack deploy running `npm start`); corroborated by `Privacy.tsx` clause 4: "operated on Google Cloud Run ... (us-west1)." No `cloudbuild.yaml`/CI in-repo — **unverified**.
+**Deployment — Google Cloud Run**, grounded in the `server.mjs` "Cloud Run proxies" comment, `.gcloudignore`, and `Privacy.tsx` clause 4 ("operated on Google Cloud Run ... us-west1"). No `Dockerfile`, `cloudbuild.yaml` or CI in-repo, so this is a source buildpack deploy: the GCP Node.js buildpack runs `npm run build` when a `build` script exists, then `scripts.start`, honouring `engines.node` (docs.cloud.google.com/docs/buildpacks/nodejs). The exact `gcloud run deploy` invocation is **unverified — absent from the repo**.
 
-Only outbound reference anywhere: `https://magic.aivedha.com` (`MAGIC_URL` in `src/lib/utils.ts`), opened `target="_blank"` — never fetched or proxied.
+## Design system
+"Editorial Luxe", **not** Liquid Glass. `src/index.css` `@theme`: `--font-display` Fraunces (variable `opsz`/`wght`/`SOFT`), `--font-sans` Manrope, `--font-mono` JetBrains Mono; paper `#f5f1e8`, ink `#0c0c0c`, `--color-oxblood` `#8b1a1a` (= `--accent`), `--color-oxblood-deep` `#5f0f0f`. Numbered `§` sections, asymmetric broadsheet layout, hard offset shadows, paper grain. The repo's single `backdrop-blur` (`TypographicDock.tsx`) is incidental — do not apply Liquid Glass rules here.
 
 ## Naming conventions
 | Kind | Convention | Example |
 |---|---|---|
-| Component files | PascalCase, filename = export | `FeaturesIndex.tsx` exports `FeaturesIndex` |
-| Page files | PascalCase under `src/pages/` | `Terms.tsx` exports `Terms` |
-| Hook files | camelCase, `use`-prefixed | `useDocumentMeta.ts` |
-| Lib files | camelCase | `utils.ts` exports `cn()` |
-| Constants | SCREAMING_SNAKE_CASE | `export const MAGIC_URL = '...'` |
-| CSS classes | kebab-case, editorial-themed | `.display-hero`, `.editorial-rule`, `.paper-grain` |
-| Theme tokens | kebab-case custom props under `@theme` | `--color-oxblood`, `--font-display` |
+| Components / pages | PascalCase, filename = export | `FeaturesIndex.tsx` |
+| Hooks | camelCase, `use`-prefixed | `useDocumentMeta.ts` |
+| Constants | SCREAMING_SNAKE_CASE | `MAGIC_URL`, `STATS` |
+| CSS classes / theme tokens | kebab-case, editorial-themed | `.paper-grain`, `--color-oxblood` |
 | localStorage keys | kebab-case, app-prefixed | `aivedha-theme` |
-| Routes | lowercase, no trailing slash | `/`, `/terms`, `/privacy` |
-| Import alias | `@/*` → `src/*` | `import { cn } from '@/lib/utils'` |
-| Env vars | none app-specific; only `PORT` | `server.mjs` |
 
 ## Data types & models
-Static content site — **no database, no runtime fetching**. "Models" are TypeScript interfaces for hardcoded in-source content arrays.
+"Models" are TypeScript shapes over hardcoded in-source arrays.
 
-| Entity | Fields (name : type) | Store | Defined in |
-|---|---|---|---|
-| `Entry` (feature row) | `roman,title,italic,body,page : string` | in-memory array | `FeaturesIndex.tsx` |
-| `Act` (how-it-works step) | `numeral,kicker,title,italic,body,tag,duration : string` | in-memory array | `HowItWorks.tsx` |
-| `Quote` (testimonial) | `body,who,role,city,rule : string` | in-memory array | `Testimonials.tsx` |
-| `Stat` (colophon counter) | `value:string, numeric:number\|null, label:string` | in-memory array | `Colophon.tsx` |
-| `DockItem` (bottom nav) | `roman,label:string, to?,href?,hash?:string, accent?:bool` | in-memory array | `TypographicDock.tsx` |
-| `LegalPageProps` | `kicker,title,subtitle,effective,metaDescription:string, children:ReactNode` | props | `LegalPage.tsx` |
-| `Theme` | `'light' \| 'dark'` | context + `localStorage['aivedha-theme']` | `ThemeToggle.tsx` |
+| Entity | Fields | Defined in |
+|---|---|---|
+| `Entry` (feature row) | `roman,title,italic,body,page : string` | `FeaturesIndex.tsx` |
+| `Act` (how-it-works step) | `numeral,kicker,title,italic,body,tag,duration : string` | `HowItWorks.tsx` |
+| `Quote` (testimonial) | `body,who,role,city,rule : string` | `Testimonials.tsx` |
+| `DockItem` (bottom nav) | `roman,label:string, to?,href?,hash?:string, accent?:bool` | `TypographicDock.tsx` |
+| `LegalPageProps` | `kicker,title,subtitle,effective,metaDescription:string, children` | `LegalPage.tsx` |
+| `Theme` | `'light' \| 'dark'`; ctx `{theme, toggle}` | `ThemeToggle.tsx` |
+| `STATS` (colophon counters) | `value:string, numeric:number\|null, label:string` — untyped literal, **no named interface** | `Colophon.tsx` |
+
+`useDocumentMeta(title, description?)` sets `document.title` and upserts `<meta name="description">`; used by `Home`, `LegalPage`.
 
 ## API surface
-**No HTTP application API.** `server.mjs` only serves static files + a health probe — no JSON endpoint, no form target, no `fetch`/`axios`/`XMLHttpRequest` in `src/` (repo-wide grep verified).
+**No HTTP application API.** No JSON endpoint, no form target, no `fetch`/`axios`/`XMLHttpRequest` in `src/` (grep verified). All 6 operations live in `server.mjs`; auth: none.
 
-| Operation | Path | Request | Response | Auth | Defined in |
-|---|---|---|---|---|---|
-| Health check | `GET /healthz` | none | `200 "ok"` text | none | `server.mjs` |
-| Canonical redirect | any, host `aivedha.com` | none | `301` → `https://www.aivedha.com<path+query>` | none | `server.mjs` |
-| Static assets | `GET /assets/*` | none | file, `max-age=365d, immutable` | none | `server.mjs` |
-| Static root files | `GET /*` (file match) | none | file, `max-age=1h` (`no-cache` `.html`) | none | `server.mjs` |
-| Sitemap/robots/manifest | `/sitemap.xml`, `/robots.txt`, `/manifest.webmanifest` | none | file, explicit content-type | none | `server.mjs` |
-| SPA fallback | `GET *` (no file match) | none | `dist/index.html` | none | `server.mjs` |
+| Operation | Path | Response |
+|---|---|---|
+| Health | `GET /healthz` | `200 "ok"` |
+| Canonical redirect | any path, host `aivedha.com` | `301` → `www.aivedha.com<path+query>`, `max-age=3600` |
+| Static assets | `GET /assets/*` | `max-age=365d, immutable` |
+| Static root | `GET /*` (file match) | `max-age=1h`; `.html` → `no-cache` |
+| Sitemap/robots/manifest | those 3 | explicit content-type |
+| SPA fallback | `GET *` (no file) | `dist/index.html` |
 
-Outbound third-party call: none programmatic. Only external reference is a plain `<a target="_blank">` to `https://magic.aivedha.com` — a separate product.
-
-## CORS & headers
-No CORS middleware or `Access-Control-*` headers — **none configured — GAP** (moot today, relevant if `magic.aivedha.com` ever fetches this origin).
-Set in `server.mjs`: `X-Powered-By` disabled; `trust proxy: true`; tiered `Cache-Control`. No CSP, HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` — **not configured — GAP** for a public origin.
+## Headers & CORS
+Set: `X-Powered-By` disabled, `trust proxy: true`, tiered `Cache-Control`. Absent — **GAP** for a public origin: CSP, HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`. No CORS middleware — GAP, moot until another origin fetches this one.
 
 ## Security boundary
-- Entirely public content. No auth, no user accounts, no server-side data storage in this repo.
-- No secrets read anywhere except the non-sensitive `PORT` env var (`server.mjs`); no `.env*` files present.
-- `README.md`: "The site never talks to a backend" — ERP OAuth/data/auth logic lives in the separate `magic.aivedha.com` app, outside this repo.
-- Trust assumption: `trust proxy: true` + `X-Forwarded-Host` assumes the process sits only behind Cloud Run's proxy; no infra-as-code in-repo to confirm.
-- Privacy Policy documents data practices for the *combined* AIVEDHA surface (this site + `magic.aivedha.com`); that logic is outside this repo — here it's documentation only.
+- Entirely public content. No auth, accounts, or server-side storage. No secrets; only the non-sensitive `PORT` env var is read, and no `.env*` file exists.
+- ERP OAuth/data logic lives in the separate `magic.aivedha.com` app. `Privacy.tsx` documents the *combined* AIVEDHA surface; enforcement lives elsewhere.
+- `trust proxy: true` + `X-Forwarded-Host` assumes the process sits only behind Cloud Run's proxy; nothing in-repo confirms that.
 
 ## Known gaps & risks
-- `README.md` component tree is stale — omits `HowItWorks.tsx`, `Testimonials.tsx`, `useDocumentMeta.ts`, all wired into `Home.tsx`.
-- No security headers (CSP/HSTS/X-Frame-Options/X-Content-Type-Options/Referrer-Policy) — verified absent from `server.mjs`.
-- No CORS policy configured.
-- `Testimonials.tsx` hardcodes 4 named individuals/companies/cities as quotes via `dangerouslySetInnerHTML`; static (not XSS-exploitable), sourcing/consent unverifiable.
-- No automated tests anywhere (no `*.test.*`/`*.spec.*`, no test runner).
-- No lint config; `npm run lint` = `tsc --noEmit` only; `noUnusedLocals`/`noUnusedParameters` are `false`, so dead code isn't caught.
-- No CI workflow (`.github/` absent), no `cloudbuild.yaml`/`Dockerfile` despite `.gcloudignore` implying `gcloud` deploy.
-- `robots.txt` disallows `/api/`, a path that doesn't exist — vestigial.
+- `README.md` is stale twice: its component tree omits `HowItWorks.tsx`, `Testimonials.tsx`, `useDocumentMeta.ts`, and its Development section lists scripts that do not exist.
+- `Testimonials.tsx` hardcodes 4 named individuals with named companies, roles and cities as customer quotes, via `dangerouslySetInnerHTML` over a static template literal (not XSS-exploitable). **Sourcing and consent are unverifiable from the repo — reputational and advertising-claims risk. Confirm attribution before further publication.**
+- `*`→`Home` returns a 200 homepage for any unknown URL; no soft-404 signal for crawlers.
+- No tests or test runner; `noUnusedLocals`/`noUnusedParameters` are `false`, so dead code is not caught.
+- No CI workflow, `Dockerfile` or `cloudbuild.yaml` despite `.gcloudignore` implying a `gcloud` source deploy — release is manual and undocumented.
+- `robots.txt` disallows `/api/`, a non-existent path. `sitemap.xml` `lastmod` is hardcoded `2026-04-14`; nothing regenerates it.

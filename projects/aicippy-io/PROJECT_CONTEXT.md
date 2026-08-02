@@ -1,91 +1,80 @@
 # Aicippy.io
 
 ## Goal
-AiCippy is a production backend-as-a-service platform and public marketing/docs site, rebranded from a Supabase-derived code estate into a fully AiCippy-owned surface: managed Postgres, auth, storage, realtime, and edge-functions via a web console ("Studio"), a CLI, and isomorphic JS SDKs, monetized with PayPal subscriptions (`Aarambh`/free, `Vajra`/pro, `Chakra`/team). Audience: developers on AiCippy-hosted backends, and the AiCippy team running `aicippy.io`/`docs.aicippy.io`/`studio.aicippy.io`.
+Production backend-as-a-service — managed Postgres, auth, storage, realtime, edge functions — rebranded off a Supabase-derived estate into a fully AiCippy-owned surface, billed via PayPal. Sites `aicippy.io`, `docs.aicippy.io`, `studio.aicippy.io`.
 
-## Core requirements
-From `ACCEPTANCE.md`/code:
-- Zero residual `supabase`, `supa-`, `stripe` strings in owned code/docs/routes.
-- Build/lint/typecheck/tests/e2e/visual-regression/Lighthouse CI must pass; the latter two (`playwright.visual.spec.ts`, `lhci autorun`) are **not yet configured**.
-- PayPal is the only payment provider; no Stripe/card-field references.
-- `auth.aivibe.cloud` (Cognito) and `api.aivibe.cloud` (AppSync) must be reachable; authz enforced server-side.
-- Secrets only via AWS Secrets Manager under `aicippy/prod/...` namespaces; one Vercel project per app root.
+Acceptance gates (`ACCEPTANCE.md`): zero residual `supabase`, `supa-`, `stripe` strings in owned code/docs/routes; PayPal the only payment provider; `auth.aivibe.cloud` (Cognito) and `api.aivibe.cloud` (GraphQL/AppSync) reachable with authz server-side; build, lint, typecheck, tests, e2e, visual regression and Lighthouse CI all green.
 
 ## Tech stack
-| Layer | Technology | Version (exact) | Source of truth |
-|---|---|---|---|
-| Monorepo tooling | pnpm workspaces + Turborepo + Node.js | pnpm `11.8.0`, turbo `2.9.14`, Node `>=24 <25` | `aicippy/package.json`, `.nvmrc` |
-| Web framework | Next.js (studio, www) | `16.2.10` | `pnpm-workspace.yaml` catalog |
-| UI runtime | React / react-dom | `19.2.7` | `pnpm-workspace.yaml` catalog |
-| Language | TypeScript | `~5.9.3` (studio/www); `~5.8.3` (aicippy-js) | `pnpm-workspace.yaml` |
-| CSS / validation / test | Tailwind `^4.2.4`, Zod `3.25.76`, Playwright `^1.59.1`, Vitest `^4.1.4` | — | `pnpm-workspace.yaml`, `e2e/studio/package.json` |
-| CLI | Go `1.25.5` (Cobra, `github.com/aicippy/cli`) + Node/Bun shim `aicippy` `0.0.0-automated` | — | `cli/apps/cli-go/go.mod` |
-| Edge Functions runtime | Rust host embedding Deno core; Rust `1.82.0`, `deno_core` `0.324.0`, V8 tag `v130.0.7` | — | `edge-runtime/Cargo.toml` |
-| JS/TS client SDK | `@aicippy/aicippy-js` (wraps auth/postgrest/realtime/storage/functions-js) | `0.0.0-automated` | `packages/aicippy-js/package.json` |
+From the `aicippy/pnpm-workspace.yaml` catalog and `aicippy/package.json` unless noted.
+- pnpm workspaces + Turborepo: pnpm `11.8.0`, turbo `2.9.14`, Node `>=24 <25` (`.nvmrc` = `24`).
+- Next.js `16.2.10` across apps `studio`, `www`, `docs`, `design-system`, `ui-library`; React/react-dom `^19.2.7`.
+- TypeScript `~5.9.3` monorepo / `~5.8.3` in `aicippy-js/`; Tailwind `^4.2.4`, Zod `3.25.76`, Vitest `^4.1.4`, Playwright `^1.59.1` (`aicippy/e2e/studio/package.json`).
+- CLI: Go `1.25.5` + Cobra, module `github.com/aicippy/cli` (`cli/apps/cli-go/go.mod`); npm shim execs the platform binary.
+- Edge Functions: Rust toolchain `1.82.0`, `deno_core` `0.324.0`, `deno_ast` `=0.44.0` (`edge-runtime/`).
 
 ## Architecture
-Five sibling code roots; monorepo root is `aicippy/` (per `ARCHITECTURE.md`).
+Sibling roots under `/Users/aj/Dev-Apps/aicippy-io`; the monorepo proper is `aicippy/`. Paths below relative to it unless prefixed.
+- `apps/studio` authenticated console (DB, auth, storage, functions, billing); `apps/www`, `apps/docs` public sites.
+- `packages/aicippy-js` (`0.0.0-automated`) isomorphic JS client wrapping `auth-js`, `postgrest-js`, `realtime-js`, `storage-js`, `functions-js`; `packages/pg-meta` Postgres introspection/DDL behind Studio's DB pages.
+- `packages/mcp-server-aicippy` MCP tools `search_docs`, `list_tables`, `execute_sql`, `apply_migration`, `get_logs`, `get_advisors`.
+- `cli/apps/cli-go` + `cli/apps/cli` Go/Cobra CLI: `start`, `stop`, `link`, `login`, `db`, `migration`, `functions`, `branches`, `secrets`, `gen`, `sso`.
+- `edge-runtime/` Rust host embedding Deno; the "user runtime" is isolated behind a "main runtime" proxy.
 
-| Package | Purpose | Path |
-|---|---|---|
-| `studio` | Authenticated console (DB, auth, storage, functions, billing) | `aicippy/apps/studio` |
-| `www` / `docs` | Public marketing / docs sites | `apps/www`, `apps/docs` |
-| `@aicippy/aicippy-js` | Isomorphic JS client (auth/postgrest/realtime/storage/functions) | `packages/*-js` |
-| `@aicippy/mcp-server-aicippy` | MCP tools (`search_docs`,`list_tables`,`execute_sql`,`apply_migration`,`get_logs`,`get_advisors`) | `packages/mcp-server-aicippy` |
-| `cli-go`+`cli` | Go/Cobra CLI (`start`,`stop`,`link`,`login`,`db`,`migration`,`functions`,`branches`,`secrets`,`gen`,`sso`) wrapped by npm shim that execs the platform binary | `cli/apps/cli-go`, `cli/apps/cli` |
-| Edge Runtime | Rust host embedding Deno; "user runtime" isolated behind "main runtime" proxy | `edge-runtime/` |
+Flow: the JS SDK reaches a project's Postgrest/Auth/Storage/Realtime/Functions endpoints; the CLI drives local Docker stacks and remote ops; Edge Runtime executes deployed Functions; `e2e/studio` (Playwright) drives Studio, which calls a REST control-plane via `apps/studio/lib/server/platform-api.ts`. Deploy: Vercel, one project per app root (`aicippy-www`, `aicippy-docs`, `aicippy-studio`); Studio also ships a self-hostable Docker image.
 
-Connection: the JS SDK is what apps (and Studio) use to call a project's Postgrest/Auth/Storage/Realtime/Functions endpoints; the CLI drives local Docker dev stacks and remote ops; Edge Runtime executes deployed Functions; `e2e/studio` (Playwright) drives Studio behaviorally. Studio talks to a REST platform control-plane (`lib/server/platform-api.ts`). `ARCHITECTURE.md` targets GraphQL-over-AppSync + Cognito, but `NEXT_PUBLIC_APPSYNC_GRAPHQL_URL` is wired only into CSP/Docker (no GraphQL call site found); Cognito is used only for JWT verification.
-
-Deployment: Vercel, one project per app root (`aicippy-www`, `aicippy-docs`, `aicippy-studio`); Studio also ships a self-hostable Docker image.
-
-## Design system
-From `DESIGN_SYSTEM.md` / `COMPONENT_REGISTRY.md`:
-| Aspect | Rule |
+## Build / run
+Run from `aicippy/`.
+| Task | Command |
 |---|---|
-| Brand intent | Premium, precise, technical, calm under complexity; explicitly not "Supabase green-led" |
-| Core tokens | `--bg-canvas:#07111f`, `--text-primary:#eef4ff`, `--brand-primary:#5b8cff`, `--brand-danger:#ef4444` |
-| Layout | 12-col grid, 8px spacing, max 1280px marketing container |
-| Components | Buttons: medium radius, never full-width; pricing cards: one primary plan emphasis only |
-| Canonical | `app-shell`→`AppLayout.tsx`; `auth-shell`→`SignInLayout.tsx` (flagged "must become Cognito-facing before launch") |
+| Install | `pnpm install` — `preinstall` hook `scripts/require-pnpm.mjs` hard-fails npm/yarn |
+| Build | `pnpm build`, or `build:studio` / `build:docs` / `build:design-system` (all set `AICIPPY_TURBO_BUILD=1`, `--concurrency=1`) |
+| Dev | `pnpm dev` (parallel) or `dev:studio` / `dev:docs` / `dev:www` |
+| Studio on a real local stack | `pnpm dev:studio-local` → `setup:cli` starts the CLI Docker stack, writes `keys.json`, generates local env, runs Studio at `NODE_ENV=test` |
+| Gates | `pnpm lint`, `pnpm typecheck`, `pnpm test:prettier` / `pnpm format` |
+| Image / E2E | `pnpm build:studio:docker`; `pnpm e2e` in `aicippy/e2e/studio` |
+
+Also required: a running Docker daemon for `setup:cli` and any local stack.
+
+## Non-obvious failure modes
+- `edge-runtime` cannot build from crates.io alone: `Cargo.toml` patches `deno_core` → `github.com/aicippy/deno_core` branch `324-aicippy` and `v8` → `github.com/aicippy/rusty_v8` tag `v130.0.7`; git access to both forks is mandatory.
+- `packageManager` drifts per root: `aicippy` pnpm `11.8.0`, `cli` pnpm `11.4.0`, `aicippy-js` pnpm `11.1.2`, `storage` npm `11.12.1` — run package commands from the correct root.
+- PayPal checkout 400s unless `returnUrl`/`cancelUrl` are on the aicippy.io domain, and 401s without a JWT `sub` claim — both checked before PayPal is called.
+
+## Design system (`DESIGN_SYSTEM.md`, `COMPONENT_REGISTRY.md`)
+Not "Supabase green-led", not Liquid Glass. Tokens: `--bg-canvas:#07111f`, `--text-primary:#eef4ff`, `--brand-primary:#5b8cff` (hover `#78a0ff`), `--brand-danger:#ef4444`. 12-col grid, 8px spacing, 1280px max marketing container; buttons never full-width. Shells: `app-shell`→`AppLayout.tsx`, `auth-shell`→`SignInLayout.tsx` (flagged "must become Cognito-facing before launch").
 
 ## Naming conventions
-- npm scope `@aicippy/*`, e.g. `"@aicippy/mcp-server-aicippy"`, `"@aicippy/cli-darwin-arm64"`.
-- Plan codes are Sanskrit, not English tiers: `tier_free`→`aarambh`, `tier_pro`→`vajra`, team→`chakra`.
-- PayPal `custom_id` composite key: `['AICIPPY', userSub, planCode, organizationSlug].join('|')`.
-- Env vars: browser-exposed `NEXT_PUBLIC_`; server secrets `AICIPPY_`/`AIVIBE_` prefix; Secrets Manager namespace `aicippy/prod/<service>/<key>` e.g. `aicippy/prod/paypal/client-id`.
-- Go CLI commands: lower-kebab-case Cobra `Use:` values, e.g. `"network-bans"`, `"vanity-subdomains"`.
+- npm scope `@aicippy/*`; platform binaries publish as `@aicippy/cli-<os>-<arch>`.
+- Plan codes are Sanskrit: free→`aarambh`, pro→`vajra`, team→`chakra` (`packages/shared-data/plans.ts`); the subscription API zod enum accepts only `vajra`/`chakra`.
+- PayPal `custom_id`: `['AICIPPY', userSub, planCode, organizationSlug.slice(0,64)].join('|')`.
+- Go CLI commands: lower-kebab-case Cobra `Use:`, e.g. `network-bans`, `vanity-subdomains`.
 
 ## Data types & models
-| Entity | Fields (name : type) | Store | Defined in |
-|---|---|---|---|
-| `Organization` | `managed_by:ManagedBy`, `partner_id?:string`, `plan:{id:PlanId,name:string}` | Platform API (REST) | `apps/studio/types/base.ts` |
-| `Project` | `id:number`,`ref:string`,`status:string`,`organization_id:number`,`region:string` | Platform API (REST) | same file |
-| `User` | `id:number`,`primary_email:string`,`gotrue_id:string`,`is_alpha_user:boolean` | Platform API (REST) | same file |
-| `PricingInformation` | `id`,`platformPlanCode`,`priceMonthly`,`creditsMonthly` | Static config | `packages/shared-data/plans.ts` |
-| `PayPalSecret` | `clientId,clientSecret,planVajra,planChakra,environment,currency` (zod) | Secrets Manager | `apps/studio/lib/server/paypal.ts` |
-| Central tables (`users`,`organizations`,`memberships`,`subscriptions`,`entitlements`,`billing_events`,`audit_events`,`invitations`) | Described only | Aurora v2 or RDS (undecided) | `ARCHITECTURE.md` — **unverified, no migration found** |
+- `apps/studio/types/base.ts`, served by the REST Platform API — `Organization{managed_by, partner_id?, plan{id,name}}`, `Project{id:number, ref, status, organization_id:number, region}`, `User{id:number, primary_email, gotrue_id, is_alpha_user:boolean}`.
+- `PricingInformation` (`packages/shared-data/plans.ts`): `id`, `platformPlanCode`, `priceMonthly`, `creditsMonthly`.
+- PayPal secret (Secrets Manager, zod in `apps/studio/lib/server/paypal.ts`): `clientId, clientSecret, planVajra, planChakra, environment, currency`.
+- Central tables `users`, `organizations`, `memberships`, `subscriptions`, `entitlements`, `billing_events`, `audit_events`, `invitations` — prose only in `ARCHITECTURE.md`, store undecided (Aurora v2 or RDS). **No migration or DDL exists**: the only `CREATE TABLE` statements in the tree are pg-meta test fixtures and Docker dev volumes.
 
 ## API surface
-| Operation | Method / Path / CLI | Request | Response | Auth | Defined in |
-|---|---|---|---|---|---|
-| PayPal billing config | `GET .../paypal/config` | none | `{clientId,currency,environment,plans}` or 503 | None | `paypal/config.ts` |
-| Create PayPal subscription | `POST .../paypal/subscriptions` | `{organizationSlug,planCode,returnUrl,cancelUrl}` (zod) | `{subscriptionId,status,approvalUrl}` | Bearer JWT | `.../subscriptions.ts` |
-| PayPal webhook | `POST .../paypal/webhook` | PayPal event + `paypal-*` sig headers | `{received,eventId,eventType,...}` | PayPal signature verify | `.../webhook.ts` |
-| CLI local stack | `aicippy start`/`stop`/`status` | Docker Compose | container status | Local Docker | `cmd/start.go` |
-| MCP tools | `search_docs`,`list_tables`,`execute_sql`,`get_logs` | zod per tool | MCP `CallToolResult` | Platform creds | `mcp-server-aicippy/src/index.ts` |
+Routes under `apps/studio/pages/api/platform/billing/paypal/`:
+| Method / Path | Request → Response | Auth |
+|---|---|---|
+| `GET .../config` | none → `{clientId,currency,environment,plans}`, else 503 | none |
+| `POST .../subscriptions` | `{organizationSlug,planCode,returnUrl,cancelUrl}` (zod) → `{subscriptionId,status,approvalUrl}` | Bearer JWT |
+| `GET .../subscriptions/[subscriptionId]` | path param → PayPal subscription | Bearer JWT |
+| `POST .../webhook` | PayPal event + `paypal-*` sig headers → `{received,eventId,eventType,...}` | PayPal sig verify |
 
-## CORS & headers
-- Edge Functions CORS is a shared exported constant: `Access-Control-Allow-Origin:'*'`, headers `authorization, x-client-info, apikey, content-type, x-retry-count`, methods `GET,POST,PUT,PATCH,DELETE,OPTIONS` — `@aicippy/aicippy-js/cors`. Wildcard by design for user Edge Functions.
-- Studio sets security headers globally (`next.config.ts` `headers()`): `X-Frame-Options:DENY`, HSTS (prod+Vercel), dynamic CSP from `csp.ts` allow-listing Cognito/AppSync/PayPal/GitHub/Sentry/hCaptcha; non-platform builds get `frame-ancestors 'none'` only. No CORS found on `pages/api/platform/...` — GAP if called cross-origin.
+MCP tools declare an `inputSchema` and return `CallToolResult`; `aicippy start`/`stop`/`status` drives the local Docker Compose stack.
 
 ## Security boundary
-- Auth: Bearer JWT via `apiWrapper(...,{withAuth:true})`→`apiAuthenticate`. Production verifies via AWS Cognito (`aws-jwt-verify`'s `CognitoJwtVerifier`); non-production falls back to legacy GoTrue claims — transitional dual-auth state.
-- Secret names only (no values): `AICIPPY_PAYPAL_SECRET_ID`, `PAYPAL_WEBHOOK_ID`, `AIVIBE_PAYMENT_API_FUNCTION_NAME`, `VERCEL_TOKEN`, `HCAPTCHA_SITE_KEY`, `POST_HOG_KEY`, `GOOGLE_MAPS_KEY`.
-- Public vs private: `www`/`docs` unauthenticated; `studio` authenticated by default; PayPal webhook public but signature-verified.
+- Bearer JWT via `apiWrapper(...,{withAuth:true})` → `apiAuthenticate`. Production verifies with Cognito (`aws-jwt-verify` `CognitoJwtVerifier`, `apps/studio/lib/server/cognito.ts`); non-production falls back to legacy GoTrue claims — transitional dual-auth, not the end state.
+- Env vars: browser-exposed use `NEXT_PUBLIC_`, server secrets `AICIPPY_`/`AIVIBE_`; Secrets Manager namespace `aicippy/prod/<service>/<key>`. Names in use: `AICIPPY_PAYPAL_SECRET_ID`, `PAYPAL_WEBHOOK_ID`, `AIVIBE_PAYMENT_API_FUNCTION_NAME`, `VERCEL_TOKEN`, `HCAPTCHA_SITE_KEY`, `POST_HOG_KEY`, `GOOGLE_MAPS_KEY`.
+- `www`/`docs` unauthenticated; `studio` authenticated by default; the PayPal webhook public but signature-verified.
+- Edge Functions CORS is a shared exported constant — origin `*`, headers `authorization, x-client-info, apikey, content-type, x-retry-count`, methods `GET,POST,PUT,PATCH,DELETE,OPTIONS`; the wildcard is deliberate for user-authored functions.
+- Studio headers set globally in `next.config.ts` `headers()`: `X-Frame-Options:DENY`, HSTS (prod on Vercel), dynamic CSP from `apps/studio/csp.ts` allow-listing Cognito/AppSync/PayPal/GitHub/Sentry/hCaptcha; non-platform builds get only `frame-ancestors 'none'`. No CORS on `pages/api/platform/...` — a gap if called cross-origin.
 
 ## Known gaps & risks
-- **No version control at the project root.** `/Users/aj/Dev-Apps/aicippy-io` has no `.git`; it's a loose set of independently git-tracked sub-repos (`aicippy/`, `cli/`, `edge-runtime/`, plus out-of-scope `etl/`, `realtime/`, `storage/`), no single history.
-- AppSync GraphQL is declared in env/CSP/Docker but not called from any Studio app code found — contradicts the GraphQL-first directive.
-- Central relational schema is prose-only in `ARCHITECTURE.md`; no migration/DDL exists in read scope.
-- Visual-regression/Lighthouse CI gates not yet configured; Cognito cutover incomplete (non-prod uses GoTrue fallback); route inventory (Jul 9 2026) lists many routes "needs audit"; pnpm drifts across roots (`11.8.0`/`11.4.0`/`11.1.2`).
+- **No version control at the project root.** No `.git` at the project root; only independently git-tracked sub-repos (`aicippy/`, `cli/`, `edge-runtime/`, `etl/`, `realtime/`, `storage/`). A change spanning roots cannot be committed atomically.
+- AppSync/GraphQL declared in env, CSP and Docker but never called: the only source reference to `NEXT_PUBLIC_APPSYNC_GRAPHQL_URL`/`_REALTIME_URL` is `apps/studio/csp.ts`. Contradicts `ARCHITECTURE.md`'s GraphQL-first directive and the `api.aivibe.cloud` acceptance gate.
+- Visual-regression and Lighthouse gates named in `ACCEPTANCE.md` (`e2e/playwright.visual.spec.ts`, `lhci autorun --config=lighthouserc.cjs`) — neither file exists. Cognito cutover incomplete; the 2026-07-09 route inventory still marks many routes "needs audit".

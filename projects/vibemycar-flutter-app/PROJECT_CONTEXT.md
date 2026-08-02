@@ -1,145 +1,129 @@
 # VibeMyCar Flutter App
 
 ## Goal
-VibeMyCar is a car-pooling app ("share the drive, split the cost") for riders
-and drivers to publish and book shared rides. A driver plans a route in a
-multi-step wizard, sets a price per seat, and publishes it; riders search,
-book a seat, and pay in-app. The platform takes a 10% service fee on wallet
-top-ups, settled via Razorpay. Secondary features: in-ride group chat, a
-collaborative ride playlist (Spotify/Amazon Music), a social feed, safety/SOS
-tooling, EV-charging lookup. Users are riders/drivers in India (INR default,
-Razorpay-only checkout).
+Car-pooling: drivers publish a route via a multi-step wizard with per-seat
+pricing; riders search, book, pay in-app. 10% additive fee on wallet
+transactions via Razorpay (India, INR, Razorpay-only). Secondary: group
+chat, collaborative playlist (Spotify/Amazon Music), social feed, safety/SOS,
+EV-charging lookup.
 
 ## Core requirements
-- Publish wizard must never dead-end — always retryable (`add_your_ride_controller.dart`).
-- Checkouts run through Razorpay only; 10% fee is additive, integer-minor-unit
-  math (`lib/domain/payment/service_fee.dart`).
-- Firestore `booking/{id}` is the source of truth for ride lifecycle (`placed`
-  -> `onGoing` -> `completed`/`canceled`); group chat mirrors it.
-- Every network/Firestore failure shows a retryable banner or named empty
-  state, never a blank screen (`RetryBanner`, `InlineStatusBanner`).
-- App Check mandatory on non-web platforms; startup never hard-fails on
-  optional/decorative remote config (`vibemycar_startup_bootstrap.dart`).
-- Interactive controls standardize on the shared `Pressable` widget.
+- Publish wizard never dead-ends — retry overwrites the same reserved draft id
+  (`add_your_ride_controller.dart:1129-1133`).
+- 10% fee: additive, integer minor units, ceiling-rounded, never zero on
+  nonzero (`domain/payment/service_fee.dart`).
+- `booking/{id}` is source of truth for lifecycle `placed` -> `onGoing` ->
+  `completed`/`canceled` (`constant.dart:83-86`); chat mirrors it.
+- Every failure shows a retryable banner or named empty state, never a blank
+  screen (`widgets/inline_feedback.dart:116,210`).
+- Startup never hard-fails on decorative config; App Check mandatory non-web
+  (`vibemycar_startup_bootstrap.dart:32-40,66-78`).
+- Interactive controls use the shared `Pressable` widget.
+
+## Build & run
+- Prereqs: `android/app/google-services.json` + `ios/Runner/GoogleService-Info.plist`
+  — gitignored (`.gitignore:60-61`), must exist locally.
+- `flutter run` needs zero dart-defines; optional `SPOTIFY_CLIENT_ID`,
+  `VMC_PAYMENT_API_BASE_URL` (else `settings/providerConfig` fallback),
+  `VMC_AMAZON_MUSIC_CLIENT_ID`, `VMC_AMAZON_MUSIC_API_BASE_URL`.
+- Firestore env is a code constant: `currentEnv`
+  (`fire_store_utils.dart:50`); `staging` targets named DB `staging`.
 
 ## Tech stack
-| Layer | Technology | Version (exact) | Source of truth |
-|---|---|---|---|
-| Language/SDK | Dart | `>=3.12.2 <4.0.0` | `pubspec.yaml:22` |
-| Framework | Flutter | `>=3.44.8` | `pubspec.yaml:23` |
-| State mgmt | GetX (`get`) / theme via `provider` | `^4.7.3` / `^6.1.5+1` | `pubspec.yaml:60,73` |
-| Backend | Firestore/Auth/Storage/Messaging/App Check | `^6.7.1`/`^6.3.0`/`^4.6.0`/`^13.2.0`/`^16.1.3`/`^0.4.2` | `pubspec.yaml:40-48` |
-| Payments | Razorpay | `razorpay_flutter ^1.4.1` | `pubspec.yaml:74` |
-| Music | Spotify PKCE, Amazon Music | `spotify_sdk ^4.0.0-dev.2` | `pubspec.yaml:94` |
-| Maps | Google Maps/Places, Geolocator | `^2.16.0`/`^0.6.0`/`^14.0.3` | `pubspec.yaml:59,61,63` |
-| Auth providers | Google Sign-In / Sign in with Apple | `^7.2.0`/`^8.1.0` | `pubspec.yaml:64,76` |
-| Android | AGP/Kotlin/Gradle wrapper/google-services | `9.1.0`/`2.4.10`/`9.6.1`/`4.5.0` | `settings.gradle.kts:22-24` |
-| Android target | `minSdk` 24, Java/Kotlin JVM 17, appId `com.vibemycar.aivibe` | — | `app/build.gradle.kts:16,21-23,27,28,58` |
-| iOS | Deployment target | `15.5` | `ios/Podfile:2` |
+| Layer | Tech (exact version) | Source |
+|---|---|---|
+| SDK | Dart `>=3.12.2 <4.0.0`; Flutter `>=3.44.8` | `pubspec:22-23` |
+| State | GetX `^4.7.3`; theme `provider ^6.1.5+1` | `pubspec:60,73` |
+| Firebase | Firestore `^6.7.1`, Auth `^6.3.0`, Core `^4.6.0`, Storage `^13.2.0`, Messaging `^16.1.3`, App Check `^0.4.2` | `pubspec:40-48` |
+| Payments | `razorpay_flutter ^1.4.1` | `pubspec:74` |
+| Music | `spotify_sdk ^4.0.0-dev.2` (PKCE); Amazon Music via HTTP | `pubspec:94` |
+| Maps | google_maps_flutter `^2.16.0`, places `^0.6.0`, geolocator `^14.0.3` | `pubspec:59-63` |
+| Sign-in | google_sign_in `^7.2.0`; sign_in_with_apple `^8.1.0` | `pubspec:64,76` |
+| Android | AGP 9.1.0, Kotlin 2.4.10, google-services 4.5.0, Gradle 9.6.1; minSdk 24, JVM 17, appId `com.vibemycar.aivibe` | `settings.gradle.kts:22-24`; wrapper; `app/build.gradle.kts:16,27-28,58` |
+| iOS | deployment target 15.5 | `ios/Podfile:2` |
 
 ## Architecture
-`lib/main.dart` boots via `VibeMyCarStartupGateway` (Firebase + App Check +
-language, then required config) before `runApp`. Root is `GetMaterialApp`
-wrapped in `ChangeNotifierProvider<DarkThemeProvider>` for theme. No named
-routes: navigation is imperative `Get.to(Widget, arguments:{...})`; each
-screen's GetX controller reads `Get.arguments` in `onInit`. Screens live in
-`lib/app/<feature>/` paired with a controller in `lib/controller/`; newer
-features add a pure-logic `lib/domain/<area>/` layer plus an I/O
-`lib/services/<area>/` layer (e.g. `domain/payment/service_fee.dart` +
-`services/payment/payment_reconciliation_service.dart`). Firestore access is
-centralized in `lib/utils/fire_store_utils.dart`. Deploy: Android (Play Store), iOS (App Store), Flutter web (`web/`) — one
-Firebase project, `vibemycar` (`416261669348`).
+`main.dart` boots via `VibeMyCarStartupGateway` (language + Firebase + App
+Check, then required config, then maintenance/forced-update gates —
+`settings/globalValue`.`release`, `fire_store_utils.dart:355`) before
+`runApp`. Root: `GetMaterialApp` in `ChangeNotifierProvider<DarkThemeProvider>`.
+No named routes — `Get.to(Widget, arguments:{...})`; controllers read
+`Get.arguments` in `onInit`. Screens `lib/app/<feature>/` +
+controllers `lib/controller/`; newer features add pure `lib/domain/<area>/` +
+I/O `lib/services/<area>/`. Firestore access centralizes in
+`utils/fire_store_utils.dart`. Deploy: Play Store, App Store, Flutter web —
+one Firebase project, `vibemycar`.
 
 ## Naming conventions
-- Files `snake_case.dart`; widgets end `Screen`, controllers end `Controller`
-  (`AddYourRideController`, `EVChargingController`).
-- Firestore collections: `snake_case` constants in `lib/constant/collection_name.dart`
-  (`"user_search_history"`, `"ride_group"`, `"vibe_id_claims"`).
-- Firestore/JSON fields: `camelCase` (`pricePerSeat`, `bookedSeat`,
-  `adminCommission` — `lib/model/booking_model.dart`).
-- Env vars (`--dart-define`): mostly `VMC_`-prefixed SCREAMING_SNAKE_CASE;
-  exception `SPOTIFY_CLIENT_ID`.
-- Git branches: `feat/<slug>` (e.g. `feat/flutter-elite-modernization`).
+- Files `snake_case.dart`; widgets end `Screen`, controllers `Controller`.
+- Collections: `snake_case` constants in `constant/collection_name.dart`
+  (`"ride_group"`, `"vibe_id_claims"`); doc fields `camelCase` (`pricePerSeat`).
+- Env vars: `VMC_`-prefixed; sole exception `SPOTIFY_CLIENT_ID`.
+- Branches: `feat/<slug>` (e.g. `feat/flutter-elite-modernization`).
 - Design tokens: 5-token Liquid Glass palette (`app_them_data.dart`) —
-  `glassBaseLight/Dark`, `inkLight/Dark`, `actionPrimary`, `actionInvert`,
-  `specular`; legacy names re-point onto these five.
+  `glassBase`/`ink` (Light+Dark), `actionPrimary`, `actionInvert`, `specular`;
+  legacy names re-point to these five.
 
 ## Data types & models
-| Entity | Fields (name : type) | Store | Defined in |
+| Entity | Fields | Store | Source |
 |---|---|---|---|
-| UserModel | id/firstName/lastName/email/phoneNumber/walletAmount:String; isVerify:bool; vibeId,tenantId/organizationId/appId:String | `users` | `model/user_model.dart` |
-| BookingModel | id/createdBy/status:String; publish:bool; pricePerSeat/totalSeat/bookedSeat:String; pickupLocation/dropLocation:Location; stopOver:List\<CityModel\>; vehicleInformation:ref | `booking` | `booking_model.dart` |
-| BookedUserModel | id/bookedSeat/subTotal:String; paymentStatus:bool; stopOver:StopOverModel; adminCommission:AdminCommission | `booking/{id}/bookedUser` | `booking_model.dart:175` |
-| VehicleInformationModel | vehicleBrand/vehicleModel:ref; licensePlatNumber:String | `user_vehicle_information` | `vehicle_information_model.dart` |
-| ReviewModel | bookingId/senderId/receiverId/rating | `review` | `review_model.dart` |
-| RazorpayModel | accountId:String; isWithdrawEnabled:bool | `settings/payment` | `payment_method_model.dart` |
-| AdminCommission | enable:bool; type/amount:String | `settings/adminCommission` | `booking_model.dart` |
+| UserModel | walletAmount:String (money-as-string); isVerify:bool; vibeId + tenantId/organizationId/appId | `users` | `user_model.dart` |
+| BookingModel | status/createdBy:String; pricePerSeat/totalSeat/bookedSeat:String (numbers-as-string); publish:bool; pickup/drop:CityModel; stopOver:List\<CityModel\>; vehicleInformation embedded | `booking` | `booking_model.dart` |
+| BookedUserModel | bookedSeat/subTotal:String; paymentStatus:bool; pickup/drop:Location (NOT CityModel); stopOver:StopOverModel; adminCommission:AdminCommission | `booking/{id}/bookedUser` | `booking_model.dart:175` |
+| VehicleInformationModel | licensePlatNumber (sic); brand/model embedded | `user_vehicle_information` | — |
+| RazorpayModel | enable/isSandbox/isWithdrawEnabled:bool; razorpayKey legacy, unused by checkout | `settings/payment` | `payment_method_model.dart:298` |
+| AdminCommission | enable:bool; type/amount:String | `settings/adminCommission` | `admin_commission.dart` |
 
 ## API surface
-| Operation | Trigger / Path | Request/Response | Auth | Defined in |
-|---|---|---|---|---|
-| Publish ride | Firestore set `booking/{id}` | `toJson()` -> bool | uid==`createdBy` | `add_your_ride_controller.dart:1133` |
-| Ride/passenger listeners | `snapshots()` `booking/{id}`, `.../bookedUser` | stream model(s) | rules-gated | `published_details_controller.dart:111,135` |
-| Load commission (private) | get `settings/adminCommission` | model or null on failure | authenticated | `fire_store_utils.dart:771` |
-| Create payment session | HTTPS payment API | amount/purpose -> `{orderId,keyId}` | bearer, `PaymentApiClient` | `lib/api/api.dart` |
-| Razorpay checkout | `Razorpay().open({key,order_id,amount,currency,prefill})` | SDK callback events | key server-issued per session | `select_payment_method_controller.dart:458` |
-| Spotify PKCE auth | browser OAuth, redirect `com.vibemycar.aivibe://spotify-callback` | token via exchange client | PKCE, no client secret | `domain/music/spotify_pkce_oauth_flow.dart` |
-| EV stations nearby | Google Places API via `http` | lat/lng+radius -> station list | Places API key (config) | `controller/ev_charging_controller.dart` |
-
-## CORS & headers
-None configured — Firebase-SDK mobile client, not a web server. Flutter web
-(`web/`) relies on Firebase Hosting defaults, absent from this checkout. GAP
-if ever served from a non-Firebase origin.
+| Operation | Path / call | Auth | Source |
+|---|---|---|---|
+| Publish ride | Firestore set `booking/{id}` via `toJson()` | uid==`createdBy` | `add_your_ride_controller.dart:1133` |
+| Ride/passenger streams | `snapshots()` `booking/{id}` + `.../bookedUser` | rules-gated | `published_details_controller.dart:111,135` |
+| Private settings | get `settings/adminCommission`,`settings/referral`; cleared on failure | authed uid only | `fire_store_utils.dart:771` |
+| Payment session | HTTPS API: purpose/amountMinor -> keyId/orderId | bearer = Firebase ID token | `api/external/l2/payment_api_client.dart:465` |
+| Razorpay checkout | `_razorpay.open({key,order_id,amount,currency,prefill})` | key server-issued per session | `select_payment_method_controller.dart:468` |
+| Spotify PKCE | browser OAuth -> `com.vibemycar.aivibe://spotify-callback` | PKCE, no secret | `domain/music/spotify_pkce_oauth_flow.dart` |
+| EV stations | Google Places via `http`: lat/lng+radius -> stations | Places key | `controller/ev_charging_controller.dart` |
 
 ## Security boundary
-Auth is Firebase Authentication (phone/Google/Apple). `UserModel` carries
-`tenantId`/`organizationId`/`appId` for future cross-app joins, but auth stays
-on Firebase under a documented exception (`user_model.dart:31-39`). Secrets
-are never hardcoded — resolved via `--dart-define` (names only, see Naming
-conventions), with `settings/providerConfig` in Firestore as a remote-config
-fallback for the payment API base URL. Android signing reads
-`android/key.properties`; `google-services.json`/`GoogleService-Info.plist`
-are gitignored (present locally, untracked). Razorpay's checkout key is
-server-issued per session, never embedded. `settings/adminCommission`/
-`settings/referral` load only for an authenticated uid
-(`private_settings_policy.dart`), clearing on failure. No `firestore.rules`
-file exists here — rule text unverified; only client-side gating confirmed.
-App Check is active on all non-web platforms.
+Firebase Auth (phone/Google/Apple); stays on Firebase under a documented
+tenancy exception (`user_model.dart:31-39`). Android signing reads
+`android/key.properties` (gitignored). Razorpay key server-issued per session,
+never embedded. Private settings load only for an authed uid
+(`domain/auth/private_settings_policy.dart`). No
+CORS/header config — mobile SDK client; web build relies on Firebase Hosting
+defaults (config absent here).
 
 ## Known gaps & risks
-- No `firestore.rules` in repo — server-enforced rules unverified. GAP.
-- Owner defects 1-5 (publish screen empty; payment-method screen empty;
-  first-run errors instead of welcome; commission hard-blocking publish; EV
-  charging opening unasked/no permission/wrong location) are **not
-  reproducible in current source**; each site carries an anti-regression
-  comment naming the historical bug and fix: zero-height collapse fixed via
-  `IntrinsicHeight` (`published_details_screen.dart:1148-1152`);
-  `PaymentFlowShell` "imported by nothing until now"
-  (`select_payment_method_screen.dart:34-36`); missing banner used to `throw`,
-  trapping first run (`vibemycar_startup_bootstrap.dart:66-78`);
-  `publishRide()` has no `adminCommission` dependency, fee shows 0 when absent
-  (`add_your_ride_controller.dart:1133`); `_getPosition()` requests permission,
-  `locationDenied` has a dedicated UI state (`ev_charging_controller.dart`).
-  Owner's installed build vs. this source: unverified, no on-device check done.
-- Owner defect 6 (inconsistent buttons): largely addressed — `Pressable` in
-  69 files; 8 remaining raw gesture sites are non-button (keyboard dismiss,
-  chat media tap-to-open, dialog backdrop).
-- `android/build.gradle.kts:29-35` adds tapandpay to a `stripe_android`
-  subproject; no Stripe package exists in `pubspec.yaml` — dead config.
+- No `firestore.rules` here — server-enforced rules unverified; only
+  client-side gating confirmed. GAP.
+- `android/build.gradle.kts:29-35` injects play-services-tapandpay into a
+  `stripe_android` subproject; no Stripe package in `pubspec.yaml` — dead
+  config. `app/build.gradle.kts:68` pins play-services-wallet 19.4.0.
+- Release build unminified/unshrunk (`app/build.gradle.kts:45-46`).
 
-## Owner-blocked items (not resolvable from source)
+## Owner defects — source-tree verification (2026-08-02)
+CAVEAT — SOURCE TREE ONLY, not the owner's installed build: do NOT read this
+as "the app is fixed"; proof is still a driven, screenshotted device run.
+Defects 1-5 not reproducible in source; each site has an anti-regression
+comment:
+1. Publish screen empty — `IntrinsicHeight` fix (`published_details_screen.dart:1148-1152`).
+2. Payment screen empty — `PaymentFlowShell` "imported by nothing until now" (`select_payment_method_screen.dart:33-36`).
+3. First-run error trap — missing banner used to `throw` (`vibemycar_startup_bootstrap.dart:66-78`).
+4. Commission hard-block — `publishRide()` has zero `adminCommission` refs (`add_your_ride_controller.dart:1133`).
+5. EV — explicit tap only (`home_screen.dart:331`); permission flow (`ev_charging_controller.dart:349-365`); `locationDenied` UI (`ev_charging_screen.dart:437`).
+6. Buttons — `Pressable` in 75 files; 9 raw gesture sites, all non-button:
+   rating slider, pinch-zoom, keyboard dismiss, 4 chat-media viewers, dialog
+   tap-guard, get-started CTA (`get_started_route_gate.dart:188`).
 
-Carried forward from the owner's operational notes on 2026-07-31. These need the
-owner personally; no agent can clear them.
-
-| Item | Action required | Impact while open |
+## Owner-blocked (owner's notes 2026-07-31)
+| Item | Action | Impact |
 |---|---|---|
-| Release keystore password leaked | Rotate the keystore credential and purge it from wherever it leaked | Signed-release integrity at risk |
-| Firebase CLI session expired | Owner runs `firebase login --reauth` | Security Rules and index deploys blocked |
-| Gemini API spending cap reached | Raise the cap or switch generation account | 12 car photos still missing from the catalogue |
-| Launch seed not applied | Owner runs the launch content seed with `--apply` | 100 profiles + 280 rides absent from the live app |
+| Keystore password leaked | Rotate + purge leak | Release-signing integrity at risk |
+| Firebase CLI expired | `firebase login --reauth` | Rules/index deploys blocked |
+| Gemini spending cap | Raise cap or switch account | 12 car photos missing |
+| Launch seed unapplied | Run with `--apply` | 100 profiles + 280 rides absent |
 
-Verification standard for this project: a change is done only when the running
-app has been driven on device and screenshotted. `flutter analyze` catches
-compile errors and is not evidence a feature works. Emulator: `VibeMyCar_API_36`.
+Verification standard: done = running app driven on device + screenshot;
+`flutter analyze` catches compile errors only. Emulator: `VibeMyCar_API_36`.
 adb: `/opt/homebrew/share/android-commandlinetools/platform-tools/adb`

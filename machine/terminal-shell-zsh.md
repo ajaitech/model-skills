@@ -43,5 +43,7 @@ Always `pgrep` before `pkill` to confirm the pattern only matches intended proce
 |---|---|
 | Find + null-safe xargs | `find . -name '*.log' -print0 \| xargs -0 rm` |
 | Find + exec per file (safest, no re-splitting) | `find . -name '*.tmp' -exec rm {} \;` |
-| Bounded search root | `find . -regex '...'` — never `find /` |
-- With `find -regex` alternation, put the longest alternative first: `.*\.\(tsx\|ts\)` not `.*\.\(ts\|tsx\)` — the shorter pattern matches first and silently truncates results.
+| Bounded search root | `find . -name '...'` — never `find /` |
+| Extended regex on BSD/macOS find | `find -E . -regex '.*\.(ts\|tsx)$'` (pipe escaped for this table only) |
+- macOS ships BSD `find`: `-regex` matches **the WHOLE path, not the basename** (`man find`) — `-regex 'foo'` never matches `./dir/foo`; write `.*/foo`. Without the `-E` global option (which must precede the path) patterns are POSIX **basic** regex, so alternation needs `\(a\|b\)`.
+- BSD `find` has no `-printf`; use `-print0` + `xargs -0`, or `-exec`.

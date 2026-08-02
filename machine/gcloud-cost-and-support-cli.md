@@ -1,6 +1,6 @@
 # gcloud Cost & Support CLI
 
-Model: `gcloud` CLI against Cloud Billing, Budgets, BigQuery billing export, and GCP Support. Firebase projects bill through the underlying GCP project — Firebase Console spend and `gcloud billing` report the same account.
+Model: `gcloud` CLI against Cloud Billing, Budgets, BigQuery billing export, and the Cloud Support API (this machine: gcloud 578.0.0 at `~/google-cloud-sdk/bin`; `alpha`/`beta` components are NOT installed — `gcloud components install alpha` first). Firebase projects bill through the underlying GCP project — Firebase Console spend and `gcloud billing` report the same account.
 
 ## Billing accounts & project linkage
 | Task | Command |
@@ -8,14 +8,16 @@ Model: `gcloud` CLI against Cloud Billing, Budgets, BigQuery billing export, and
 | List billing accounts | `gcloud billing accounts list` |
 | Show a project's linked billing account | `gcloud billing projects describe <project-id>` |
 | Link a project to a billing account | `gcloud billing projects link <project-id> --billing-account=<ACCOUNT_ID>` |
-No direct "list all projects under this billing account" command is guaranteed stable across CLI versions — verify against `gcloud billing --help` or use the Billing Console.
+| List all active projects on a billing account | `gcloud billing projects list --billing-account=<ACCOUNT_ID>` |
+| Unlink | `gcloud billing projects unlink <project-id>` |
+All of the above are GA (verified against `gcloud billing --help`, 578.0.0).
 
 ## Budgets
 | Task | Command |
 |---|---|
 | List budgets | `gcloud billing budgets list --billing-account=<ACCOUNT_ID>` |
-| Create budget | `gcloud billing budgets create --billing-account=<ACCOUNT_ID> --display-name="..." --budget-amount=<amount> ...` |
-Verify threshold-rule and notification-channel flags against `gcloud billing budgets create --help` before authoring — field names shift across `beta`→GA promotion.
+| Create budget | `gcloud billing budgets create --billing-account=<ID> --display-name="..." --budget-amount=100.75USD --threshold-rule=percent=0.50 --threshold-rule=percent=0.75,basis=forecasted-spend` |
+GA group, verified against `gcloud billing budgets create --help` (578.0.0). `--threshold-rule` repeats, `percent` is a FRACTION (0.50 = 50%), `basis` is `current-spend` (default) or `forecasted-spend`, and the amount carries its currency inline (`100.75USD`). Scope with `--filter-projects`/`--filter-services`/`--filter-labels`; route alerts with `--notifications-rule-pubsub-topic` or `--notifications-rule-monitoring-notification-channels`. Mutually exclusive: `--budget-amount` vs `--last-period-amount`.
 
 ## BigQuery billing export
 - Enabling export to BigQuery is done in the Billing Console (Billing export page) targeting a dataset you own — there is no dedicated `gcloud` "enable export" command; verify against the current console/API surface.
@@ -25,17 +27,19 @@ bq query --use_legacy_sql=false "SELECT ... FROM \`project.dataset.gcp_billing_e
 ```
 
 ## Support cases
-| Task | Command |
+There is **no `gcloud support` command group** — `gcloud support` returns `Invalid choice` (verified on 578.0.0) and there is no such page in the gcloud reference. Use the Cloud Customer Care REST API v2 directly, or the Console.
+| Task | How |
 |---|---|
-| List support cases | `gcloud support cases list --project=<project-id>` |
-| Create a case | `gcloud support cases create --display-name="..." --project=<project-id> ...` |
-Requires the Cloud Support API enabled and a paid support plan (Standard/Enhanced/Premium) — Basic (free) tier has no API case-creation entitlement. Verify current command group (`gcloud support` vs `gcloud alpha support`) via `gcloud help support` — this surface has moved between release tracks.
+| Enable the API | `gcloud services enable cloudsupport.googleapis.com --project=<project-id>` |
+| List cases under a project | `GET https://cloudsupport.googleapis.com/v2/{parent}/cases` with `parent=projects/<project-id>`; auth `Authorization: Bearer $(gcloud auth print-access-token)` |
+| Search across an org and its projects | `cases.search` — plain `cases.list` returns only cases parented DIRECTLY at that resource, not descendants |
+OAuth scope: `https://www.googleapis.com/auth/cloudsupport` (or `cloud-platform`). Requires a paid support plan (Standard/Enhanced/Premium) — Basic (free) has no API case-creation entitlement. Docs root: https://cloud.google.com/support/docs/reference/rest
 
 ## Quota inspection
 | Task | Command |
 |---|---|
 | Compute-specific project quotas | `gcloud compute project-info describe --project=<project-id>` |
-| General service-level quota | `gcloud services quota list --service=<service>.googleapis.com --consumer=projects/<project-id>` |
+| General service-level quota | `gcloud alpha services quota list --service=<service>.googleapis.com --consumer=projects/<PROJECT_NUMBER>` — **alpha only** (`gcloud services quota` does not exist in GA; requires `gcloud components install alpha`). Both flags are required; `--consumer` also accepts `folders/<id>` / `organizations/<id>` |
 | Request a quota increase | Cloud Console Quotas page — no universal CLI grant command; verify per-service |
 
 ## Firebase-specific notes

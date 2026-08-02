@@ -1,14 +1,16 @@
 # macOS System — Darwin
 
-Model: macOS on the Darwin kernel (this machine: Darwin 25.6, zsh default shell). For OS-level inspection/repair — services, security store, code signing, package management, disk state. Verify flags via `man <cmd>` or `<cmd> --help` before relying on an unfamiliar one from memory.
+Model: macOS on the Darwin kernel (this machine: macOS 26.6, Darwin 25.6.0, arm64, zsh 5.9, Homebrew prefix `/opt/homebrew`). For OS-level inspection/repair — services, security store, code signing, package management, disk state. Verify flags via `man <cmd>` or `<cmd> --help` before relying on an unfamiliar one from memory.
 
 ## launchd / launchctl
 | Task | Command |
 |---|---|
 | List all loaded services | `launchctl list` |
 | Filter by label substring | `launchctl list \| grep <substr>` |
-| Load a LaunchAgent/Daemon | `launchctl load ~/Library/LaunchAgents/<plist>` |
-| Unload | `launchctl unload ~/Library/LaunchAgents/<plist>` |
+| Bootstrap (load) a LaunchAgent | `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/<plist>` |
+| Bootout (unload) | `launchctl bootout gui/$(id -u)/<label>` |
+| Legacy equivalents (still work, superseded) | `launchctl load` / `launchctl unload <plist>` |
+| Enable a disabled service (persists across boots) | `launchctl enable gui/$(id -u)/<label>` |
 | Start/stop a loaded job | `launchctl start <label>` / `launchctl stop <label>` |
 | Print job status + last exit code | `launchctl print gui/$(id -u)/<label>` |
 User agents: `~/Library/LaunchAgents`. System-wide: `/Library/Launch{Agents,Daemons}`. Apple-owned: `/System/Library/Launch{Agents,Daemons}` — never edit these.
@@ -36,13 +38,14 @@ NEVER print secret values into chat, logs, or commits — inspect existence/attr
 ## codesign / notarization
 | Task | Command |
 |---|---|
-| Sign | `codesign --force --deep --sign "<Developer ID>" <path>` |
+| Sign one target | `codesign --force --options runtime --timestamp --sign "<Developer ID Application: ...>" <path>` |
 | Verify | `codesign --verify --deep --strict --verbose=2 <path>` |
 | Gatekeeper assessment | `spctl --assess --type execute -vv <path>` |
 | Submit for notarization | `xcrun notarytool submit <file.zip> --keychain-profile "<profile>" --wait` |
 | Staple ticket | `xcrun stapler staple <path>` |
 | Notarization history | `xcrun notarytool history --keychain-profile "<profile>"` |
-Verify current flags via `xcrun notarytool --help` — surface has shifted across Xcode versions.
+`--deep` is DEPRECATED **for signing** as of macOS 13.0 (`man codesign`): it applies every signing option to every nested item, which is almost never intended. Sign nested code inside-out — frameworks/helpers/plug-ins first, outer bundle last — and keep `--deep` only on `--verify`. Hardened Runtime (`--options runtime`) and a secure timestamp (`--timestamp`) are prerequisites for notarization.
+`notarytool` requires a stored credential: `xcrun notarytool store-credentials "<profile>" --apple-id <id> --team-id <TEAMID> --password <app-specific-password>` (run interactively; never commit the value). Verify current flags via `xcrun notarytool --help`.
 
 ## diskutil
 | Task | Command |

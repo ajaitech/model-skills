@@ -1,6 +1,6 @@
 # AWS Cost & Support CLI
 
-Model: AWS CLI v2 (`aws`) against Cost Explorer (`ce`), Budgets, Cost Anomaly Detection, and Support. Requires credentials scoped to `ce:*`/`budgets:*`/support, or the management account for consolidated billing.
+Model: AWS CLI v2 (`aws`; this machine: aws-cli/2.36.12 at `/opt/homebrew/bin/aws`) against Cost Explorer (`ce`), Budgets, Cost Anomaly Detection, and Support. Requires credentials scoped to `ce:*`/`budgets:*`/support, or the management account for consolidated billing.
 
 ## Cost Explorer (`aws ce`)
 | Task | Command shape |
@@ -30,7 +30,7 @@ Requires a **Business, Enterprise On-Ramp, or Enterprise** support plan — Basi
 | Task | Command shape (Business+ only) |
 |---|---|
 | Open a case | `aws support create-case --subject "..." --service-code ... --category-code ... --communication-body "..."` |
-| List open cases | `aws support describe-cases --include-resolved-cases false` |
+| List open cases | `aws support describe-cases` (resolved cases excluded by default; `--include-resolved-cases` / `--no-include-resolved-cases` is a boolean FLAG — `--include-resolved-cases false` is a parse error) |
 Get `service-code`/`category-code` values from `aws support describe-services` first — these are account/catalog-specific, never guess them.
 
 ## Cost-allocation tagging

@@ -9,13 +9,21 @@ Model: `vercel` CLI for deploy/project management; usage and billing figures liv
 | List teams | `vercel teams list` |
 | Switch scope | `vercel switch <team-slug>` |
 | Link local dir to a project | `vercel link` |
-| Show linked project info | `vercel project ls` |
-A command run in the wrong scope silently reports the wrong team's numbers — check `vercel whoami` and `.vercel/project.json` before trusting a figure.
+| List projects in scope | `vercel project ls` |
+| Inspect the linked (or named) project | `vercel project inspect [name]` |
+A command run in the wrong scope silently reports the wrong team's numbers — check `vercel whoami` and `.vercel/project.json` before trusting a figure. `vercel usage` reads the **currently active team**, and needs an Owner/Member/Developer/Security/Billing/Enterprise-Viewer role — a permission error here is a role problem, not a CLI bug.
+Not installed on this machine: `npm i -g vercel`, then `vercel login` (or `VERCEL_TOKEN` in CI; `--token` overrides it but leaks into process lists).
 
 ## Usage & billing surfaces
 | Task | Where |
 |---|---|
-| Bandwidth, function invocations, build minutes, edge requests | Dashboard → Team/Project → Usage tab. Verify against current `vercel --help` for any newer `usage`/`billing` subcommand before assuming a CLI-only workflow exists |
+| Billing usage + cost per service, current period | `vercel usage` — table of Service / Usage / Effective Cost / Billed Cost |
+| Custom range (both flags required together) | `vercel usage --from YYYY-MM-DD --to YYYY-MM-DD` — dates are midnight/23:59:59 America/Los_Angeles; max range 1 year, 1-day granularity |
+| Per-period breakdown | `vercel usage --breakdown daily\|weekly\|monthly` |
+| Machine-readable | `vercel usage --format json` (`-F json`) → `period`, `context`, `services[]`, `totals`, `chargeCount` |
+| Metric series + discoverable schema | `vercel metrics schema`, then `vercel metrics <metric-id> --since 7d --granularity 1d --prod` |
+| Contract/commitment figures | `vercel contract --format json` |
+| Bandwidth, invocations, build minutes, edge requests | Dashboard → Team/Project → Usage tab (visual breakdown) |
 | Deployment list + status | `vercel ls` |
 | Inspect one deployment (region, config) | `vercel inspect <deployment-url>` |
 | Logs for a deployment (surfaces invocation-heavy routes) | `vercel logs <deployment-url>` |
