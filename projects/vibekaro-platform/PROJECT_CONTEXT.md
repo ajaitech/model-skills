@@ -56,10 +56,9 @@ Lambda's `publish_catalog` action), `ops/acceptance` (Playwright smoke/cutover, 
 Two real CDK stacks deployed (verified live via `aws cloudformation list-stacks`, both
 `UPDATE_COMPLETE` 2026-08-04): `VibeKaroPlatform` and `VibeKaroRelease`, both `us-east-1`,
 `terminationProtection: true`. **`VibeKaroRecovery` (us-west-2) is declared in `infra/bin/vibekaro-platform.ts`
-but was never deployed — confirmed zero stacks in us-west-2.** Its primary-side counterpart,
-`infra/src/recovery-controls.ts` (backup vault, daily backup plan, cross-region S3 replication,
-CloudTrail), was never instantiated by any stack and was **deleted from source 2026-08-07** as
-dead code — cross-region recovery needs a fresh design, not a resurrection of that file. CI:
+but was never deployed — confirmed zero stacks in us-west-2.** No backup vault, backup plan,
+cross-region S3 replication, or CloudTrail exists in source for this project either — cross-region
+recovery needs a fresh design from zero. CI:
 `.github/workflows/deploy-production.yml` (renamed from `deploy-infrastructure.yml` 2026-08-03),
 `workflow_dispatch` only, `ubuntu-24.04`, OIDC; CodeBuild runs `buildspecs/{web,flutter,execution}.yml`
 on non-root `containers/` images built by a dedicated AWS CodeBuild image builder (not GitHub runners — see CI/CD).
@@ -228,9 +227,8 @@ Two real, deployed stacks (`aws cloudformation list-stacks`), both `us-east-1`,
   response-headers policies, **1 Cognito UserPoolClient (stale — see Sign-in)**.
 - **`VibeKaroRelease`** — 1 S3 bucket + policy, 1 CodeBuild project (`ReleaseImageBuilder`,
   privileged, X2_LARGE), 1 IAM role/policy, 1 log group.
-- **`VibeKaroRecovery` (us-west-2) does not exist.** Zero stacks in that region — never deployed.
-  Its intended primary-side counterpart (`recovery-controls.ts`) was never wired into any stack and
-  has since been deleted from source (see "Legacy/orphaned resources" below).
+- **`VibeKaroRecovery` (us-west-2) does not exist.** Zero stacks in that region — never deployed, no
+  backup/replication/CloudTrail construct exists in source for it either.
 
 **Resources deliberately imported, not owned by CDK** (confirmed by cross-referencing
 `infra/src/config.ts` + `platform-stack.ts` against live AWS): shared VPC `vpc-092ffcb81e4853354`
@@ -268,59 +266,29 @@ storage-access, web}-936668162296-us-east-1`.
 **Live ECR, current/CI-created (not CDK-declared, referenced by digest-pinned CfnParameters)**:
 `vibekaro-prod-build-web`, `vibekaro-prod-build-flutter`.
 
-### Legacy/orphaned resources — verified dead, then deleted 2026-08-07
+### Resource identity — single source of truth
 
-Every item below was checked for real usage first (message counts, invocation metrics, IAM
-`RoleLastUsed`, secret `LastAccessedDate`, image push dates) before deletion, not deleted on name
-match alone — a name-match-only pass would have wrongly nuked the ECS cluster `vibekaro-workspaces`,
-which turned out to host a **different, still-live sibling product** (`aivibe-cms`), not this one.
-That cluster and its `aivibe-cms` service were left untouched.
+The below is the **complete, current, correct set**. No other same-purpose resource exists under
+any other name in `us-east-1` or `ap-south-1` for this project — confirmed by direct enumeration
+against both regions.
 
-**Deleted, us-east-1** (all confirmed 0 messages / 0 invocations-30d / never-used / stale-pushed
-before deletion):
-- SQS: `vibekaro-prod-workspace-events` + `-dlq` (dead standard-queue leftover; the FIFO pair with
-  per-session message groups was the one `infra/src/platform-stack.ts:556` actually imported),
-  `vibekaro-prod-stripe-webhooks.fifo` + `-dlq.fifo` (no `stripe` code anywhere post the 2026-08-02
-  PayPal migration)
-- ECR: `vibekaro-build-web`, `vibekaro-build-flutter` (no `-prod-` prefix, superseded by the
-  `-prod-` repos CI actually publishes to), `vibekaro-flutter-workspace` (last pushed 2026-01-09,
-  7 months stale)
-- Lambda: `vibekaro-memory-reaper`, `vibekaro-appsync-resolver`, `vibekaro-workspace-idle-reaper`,
-  `vibekaro-workspace-manager`, `vibekaro-arjuna-agent`, `vibekaro-razorpay-webhook` — none appear
-  in current `infra/src`; `razorpay-webhook` was doubly stale since Razorpay was never this
-  project's billing provider (PayPal is, Stripe was before that)
-- IAM roles (9, detached/deleted): `vibekaro-ecs-task-execution-role`, `vibekaro-workspace-task-role`,
-  `vibekaro-workspace-manager-lambda-role`, `vibekaro-stepfunctions-role`,
-  `vibekaro-lambda-execution-role`, `vibekaro-kb-role`, `vibekaro-appsync-rds-role`,
-  `vibekaro-codebuild-flutter-role`, `codebuild-vibekaro-docker-role` — the ECS-flavored names
-  pointed to an earlier Fargate-based prototype predating the current AgentCore-microVM
-  architecture (whose goal statement explicitly says "no ECS/Fargate")
-- Secrets Manager: `aivibe/vibekaro/prod/stripe`
+- IAM: 27 CDK-auto-named `VibeKaroPlatform-*ServiceRole*` roles + 5 explicitly-named
+  `vibekaro-prod-{agentcore-execution, appsync-events-logs, database-proxy, github-deploy,
+  release-image-builder}`.
+- Secrets Manager: `aivedha.ai/payments/paypal`, `aivibe/vibekaro/prod/session`. (`vibekaro/gemini-api-key`,
+  `vibekaro/agents/config`, `vibekaro/payments/razorpay` are unused by current code but retained on
+  explicit instruction — not part of the live path.)
+- ECR: `vibekaro-prod-build-web`, `vibekaro-prod-build-flutter`.
+- SQS: `vibekaro-prod-{workspace-events,paypal-webhooks}.fifo` + matching `-dlq.fifo`,
+  `vibekaro-prod-{domain-events,generated-jobs}` + `-dlq`, `vibekaro-prod-email-outbox.fifo` +
+  `-dlq.fifo`, `vibekaro-prod-email-events-dlq`, `vibekaro-prod-project-deletions.fifo` + `-dlq.fifo`.
+- S3: `vibekaro-prod-{artifacts, ci, projects, releases, storage-access, web}-936668162296-us-east-1`,
+  `legacy-vibekaro-agent-knowledge`, `legacy-vibekaro-webapp-deployments`.
+- The ECS cluster `vibekaro-workspaces` in this account belongs to a different, sibling product
+  (its one service is `aivibe-cms`) — not part of this project at all; excluded from every list
+  above.
 
-**Deleted, ap-south-1** (the account's default CLI region — a second sweep this project's own code
-never touches; found because the account default region silently accumulated stragglers):
-- ECR: `vibekaro-golden-workspace`
-- Secrets Manager: `vibekaro/paypal-credentials` — a **second, wrong-region duplicate** of the one
-  live PayPal secret (`aivedha.ai/payments/paypal`, us-east-1, referenced by `infra/src/config.ts`)
-
-**Retained on explicit instruction** (found stale but kept): `vibekaro/gemini-api-key`,
-`vibekaro/agents/config`, `vibekaro/payments/razorpay`.
-
-**Renamed, not deleted** (S3 bucket names can't be re-pointed in place; contents preserved under a
-`legacy-` prefix since S3 bucket names disallow underscores): `vibekaro-agent-knowledge` →
-`legacy-vibekaro-agent-knowledge`, `vibekaro-webapp-deployments` → `legacy-vibekaro-webapp-deployments`.
-
-**Current, correct, single source of truth going forward**: 27 CDK-auto-named
-`VibeKaroPlatform-*ServiceRole*` IAM roles + 5 explicitly-named `vibekaro-prod-{agentcore-execution,
-appsync-events-logs, database-proxy, github-deploy, release-image-builder}`; `aivedha.ai/payments/paypal`
-+ `aivibe/vibekaro/prod/session` secrets; `vibekaro-prod-{build-web,build-flutter}` ECR repos;
-`vibekaro-prod-{workspace-events,paypal-webhooks}.fifo` + matching `-dlq.fifo` SQS pairs (FIFO only).
-
-**Repo-level duplicates also resolved 2026-08-07**: `infra/src/recovery-controls.ts` (939 lines,
-never imported by any stack) deleted from source; `apps/web/components/*` and `apps/web/lib/*`
-(empty untracked shells left over from the 2026-08-04 `src/` reorg) removed from disk.
-
-**Still-live code-level duplicates, not yet resolved** (same fact hardcoded/repeated in more than
+**Still-live code-level duplicates, unresolved** (same fact hardcoded/repeated in more than
 one place instead of a single source):
 - Cognito pool ID `us-east-1_S2Cpx3svp` hardcoded literally in both `services/auth/src/handler.ts`
   and `services/generated-app/src/auth.ts`.
@@ -379,9 +347,8 @@ unchanged root `npm run verify` chain.
    enable, tracked in the commit message as revert-when-granted). `agentcore/app/*/harness.json` and
    `docs/ARCHITECTURE.md` still say `claude-sonnet-5`/`claude-opus-5` — those files are themselves
    stale and contradict their own declared source of truth (`infra/src/config.ts`).
-2. **`VibeKaroRecovery` was never deployed**, and its primary-side backup/replication/CloudTrail
-   construct (`recovery-controls.ts`) was dead code, now removed. Cross-region recovery does not
-   exist today in any form — needs a fresh design, not a resurrection of the deleted file.
+2. **`VibeKaroRecovery` was never deployed**, and no backup/replication/CloudTrail construct exists
+   in source for it. Cross-region recovery does not exist today in any form — needs a fresh design.
 3. **Sign-in fix is undeployed.** In-product sign-in, the shared-SSO-client adoption, and migration
    0018 are all committed but blocked behind the Cognito IAM gate above. Until deployed, production
    still runs the old redirect flow against the stale duplicate UserPoolClient.
@@ -393,6 +360,6 @@ unchanged root `npm run verify` chain.
 6. Hardcoded Cognito pool ID (`us-east-1_S2Cpx3svp`) in two `services/*` source files, and a CSP
    `unsafe-inline` script-src for Next.js static-export hydration (hash-pinning not yet in place) —
    both flagged, neither fixed.
-7. Legacy/duplicate AWS resources from an earlier (ECS-based) architecture generation are still
-   live and unreferenced by current code — see the AWS resources section above for the full,
-   verified list. Not deleted; flagged for a deliberate cleanup pass.
+7. The 4 still-live code-level duplicates listed under "Resource identity" above (Cognito pool ID
+   hardcoded twice, 3-way agent-model-ID disagreement, stale duplicate UserPoolClient, dual
+   database-secret IDs) are unresolved.
